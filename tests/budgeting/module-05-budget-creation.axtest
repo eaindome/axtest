@@ -1,0 +1,290 @@
+# Module 05 — Budget Creation and Management
+# Tester: Ekow | Audience: Budget Team
+
+AUTH standard-login
+MODULE budgeting
+
+---
+
+TEST P-01: Create a new budget with only the required field (Fiscal Cycle)
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  left panel contains "PENDING"
+
+---
+
+TEST P-04: Create budget and select all permitted institutions
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  click tab "Permitted Institutions"
+  check "Select all institutions"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Select all institutions" is checked
+
+---
+
+TEST P-05: Create budget with a single priority area (single programme)
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  click tab "Priority Areas"
+  select first from "Study Area"
+  wait for "Programme" list to appear
+  check first in "Programme"
+  click "Add to List"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Priority Areas" tab contains entry
+
+# SPEC GAP: "check first in list" is a new pattern we need — for checkbox lists
+# where any item is acceptable. Different from check "Label" which requires a known label.
+
+---
+
+TEST P-07: Create budget with a collection budget entry (with Date To)
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  click tab "Collection Budgets"
+  click "Add Collection"
+  select first from "Repayment Account"
+  type "01/01/2026" into "Date From"
+  type "31/12/2026" into "Date To"
+  type "500000" into "Expected Value"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Collection Budgets" tab contains entry
+
+---
+
+TEST P-09: Create budget and upload a supporting document
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  click tab "Files"
+  upload "fixtures/test-document.pdf" to upload zone
+  wait for "test-document.pdf" to appear
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  attachment badge shows "1 Document"
+
+# SPEC GAP: "upload to upload zone" — drag-drop areas often have no accessible label.
+# Need a convention: if no label, use "upload zone" as the target. Resolver looks for
+# the first visible file input or drop zone on the current page/tab context.
+
+---
+
+TEST P-12: Add budgeted fees to an existing budget (single configuration)
+
+SETUP
+  select first budget with status "PENDING" from left panel
+
+STEPS
+  click tab "Budgeted Fees"
+  click "Add"
+  select first from "Sponsorship Type"
+  type "50" into "New Intake"
+  type "{{endorsement_amount}}" into first "Endorsement Fee"
+  click "Save"
+
+ASSERT
+  toast contains "successfully"
+  "Budgeted Fees" tab contains new entry
+
+# SPEC GAP: "type into first field" — we need a way to target the first instance of
+# a repeating field when the label is shared across multiple rows.
+# SPEC GAP: "toast contains" vs "toast shows" — need a contains-variant for toasts
+# where the exact wording may vary.
+
+---
+
+TEST P-21: Remove a budgeted fee from a budget
+
+SETUP
+  select first budget with status "PENDING" and existing fees from left panel
+
+STEPS
+  click tab "Budgeted Fees"
+  open action menu in first row of "Budgeted Fees"
+  click "Remove"
+  confirm dialog
+
+ASSERT
+  toast contains "successfully"
+  "Budgeted Fees" tab row count decreases by 1
+
+# SPEC GAP: "row count decreases by 1" — relative count assertion. We need this
+# pattern for tests that verify something was removed without knowing the exact final count.
+# SPEC GAP: "open action menu in first row of" — targets the action/kebab menu
+# within a specific table's first row.
+
+---
+
+TEST P-27: Submit a PENDING budget for review
+
+SETUP
+  select first budget with status "PENDING" from left panel
+
+STEPS
+  click "Review" in action bar
+  click "Confirm Review"
+
+ASSERT
+  status badge equals "REVIEWED"
+
+---
+
+TEST P-38: Fees tab is not visible during budget creation
+
+STEPS
+  click "New"
+
+ASSERT
+  "Fees" tab is not visible
+  "Core" tab is visible
+  "Permitted Institutions" tab is visible
+  "Priority Areas" tab is visible
+  "Collection Budgets" tab is visible
+  "Files" tab is visible
+
+# This is a pure observation test — no STEPS modify state, just verify the UI structure.
+
+---
+
+TEST N-01: Attempt to create a budget without selecting a Fiscal Cycle
+
+STEPS
+  click "New"
+  click "Save"
+
+ASSERT
+  form error shows "Financial Period is required"
+  modal stays open
+
+---
+
+TEST N-05: Attempt to add duplicate sponsorship type in fee configuration
+
+SETUP
+  select first budget with status "PENDING" from left panel
+
+STEPS
+  click tab "Budgeted Fees"
+  click "Add"
+  select "{{sponsorship_type}}" from "Sponsorship Type"
+  click "Add Another Fee Configuration"
+  select "{{sponsorship_type}}" from "Sponsorship Type"
+  click "Save"
+
+ASSERT
+  error shows "Duplicate Sponsorship Type detected"
+  modal stays open
+
+---
+
+TEST N-06: Attempt to approve a budget with unmet requirements (missing verified fees)
+
+# Requires: a REVIEWED budget where the Fees section has NOT been verified.
+# If one does not exist, run P-27 first then skip the Verify step from P-24.
+
+SETUP
+  select first budget with status "REVIEWED" from left panel
+
+STEPS
+  click "Approve" in action bar
+
+ASSERT
+  "Confirm Approval" is disabled
+  "Approved Fees" shows failure indicator
+  "You cannot proceed until all requirements are met" is visible
+
+---
+
+TEST N-08: Finalize button is not visible for a PENDING budget
+
+SETUP
+  select first budget with status "PENDING" from left panel
+
+ASSERT
+  "Finalize" is not visible in action bar
+  "Review" is visible in action bar
+  "Reject" is visible in action bar
+
+# No STEPS — the assertion applies to the state set in SETUP.
+
+---
+
+TEST N-11: New button hidden for user without Create permission
+
+AUTH restricted-user
+# Overrides file-level AUTH for this test only.
+# Requires: an auth file at auth/restricted-user.axtest with a user that
+# has the Budgeting module accessible but lacks the Budgets.Create permission.
+
+ASSERT
+  "New" is not visible
+
+# SPEC NOTE: Per-test AUTH override is important for permission-based tests.
+# The file-level AUTH (standard-login) is replaced for this test only.
+
+---
+
+TEST E-02: Fiscal Cycle field is disabled when editing an existing budget
+
+SETUP
+  select any budget from left panel
+
+STEPS
+  click "Edit Budget"
+
+ASSERT
+  "Fiscal Cycle" is disabled
+  "Description" is enabled
+
+---
+
+TEST E-09: Data is preserved when switching between creation tabs
+
+STEPS
+  click "New"
+  click tab "Core"
+  select first from "Fiscal Cycle"
+  type "Annual Subvention 2025/2026" into "Description"
+  click tab "Permitted Institutions"
+  check first in "Institution"
+  click tab "Priority Areas"
+  select first from "Study Area"
+  wait for "Programme" list to appear
+  check first in "Programme"
+  click "Add to List"
+  click tab "Core"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  left panel contains "Annual Subvention 2025/2026"

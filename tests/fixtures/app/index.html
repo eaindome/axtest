@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TestApp — axtest Fixture</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; font-size: 14px; color: #111; background: #f8f9fa; }
+
+    /* ── Login ─────────────────────────────────────────────────────────────── */
+    #login-view { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#1e293b,#334155); }
+    .login-card { background: #fff; border-radius: 12px; padding: 40px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .login-logo { font-size: 22px; font-weight: 800; color: #3b82f6; margin-bottom: 24px; }
+    .login-card h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .login-card .sub { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+    .btn-full { width: 100%; justify-content: center; margin-top: 8px; }
+
+    /* ── App shell ──────────────────────────────────────────────────────────── */
+    #app-view { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────────── */
+    nav[data-sidebar] { width: 220px; background: #1e293b; color: #cbd5e1; display: flex; flex-direction: column; padding: 0; flex-shrink: 0; }
+    .sidebar-logo { padding: 20px 20px 16px; font-size: 18px; font-weight: 800; color: #fff; border-bottom: 1px solid #334155; }
+    .sidebar-logo span { color: #3b82f6; }
+    nav[data-sidebar] a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: #94a3b8; text-decoration: none; border-left: 3px solid transparent; font-size: 14px; }
+    nav[data-sidebar] a:hover { color: #fff; background: #273549; }
+    nav[data-sidebar] a.active { color: #fff; background: #273549; border-left-color: #3b82f6; }
+    .sidebar-section { padding: 20px 20px 8px; font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #475569; text-transform: uppercase; }
+    .sidebar-bottom { margin-top: auto; border-top: 1px solid #334155; }
+    .sidebar-user { padding: 12px 20px; display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: #3b82f6; color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .user-info { min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-size: 11px; color: #64748b; }
+
+    /* ── Main wrapper ───────────────────────────────────────────────────────── */
+    .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* ── Breadcrumb ─────────────────────────────────────────────────────────── */
+    nav[aria-label="breadcrumb"] { padding: 10px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    nav[aria-label="breadcrumb"] ol { list-style: none; display: flex; gap: 6px; align-items: center; }
+    nav[aria-label="breadcrumb"] li { color: #64748b; }
+    nav[aria-label="breadcrumb"] li:not(:last-child)::after { content: "/"; margin-left: 6px; }
+    nav[aria-label="breadcrumb"] li:last-child { color: #111; font-weight: 500; }
+
+    /* ── Action bar ─────────────────────────────────────────────────────────── */
+    [role="toolbar"] { padding: 10px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center; min-height: 52px; }
+
+    /* ── Content ────────────────────────────────────────────────────────────── */
+    .content { padding: 24px; overflow-y: auto; flex: 1; }
+
+    /* ── Dashboard ──────────────────────────────────────────────────────────── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+    .stat-label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+    .stat-value { font-size: 32px; font-weight: 700; color: #0f172a; }
+    .stat-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .section-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+    .activity-list { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+    .activity-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .activity-dot.green { background: #22c55e; }
+    .activity-dot.blue  { background: #3b82f6; }
+    .activity-dot.amber { background: #f59e0b; }
+    .activity-text { flex: 1; color: #374151; }
+    .activity-time { font-size: 12px; color: #94a3b8; }
+
+    /* ── Table ──────────────────────────────────────────────────────────────── */
+    .table-wrapper { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.07); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #f8fafc; }
+    th { text-align: left; padding: 10px 16px; font-weight: 600; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+    tr:last-child td { border-bottom: none; }
+    tr[data-row] { cursor: pointer; }
+    tr[data-row]:hover { background: #f8fafc; }
+    tr[data-row].selected { background: #eff6ff; }
+
+    /* ── Badges ─────────────────────────────────────────────────────────────── */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+    .badge.PENDING   { background: #fef9c3; color: #854d0e; }
+    .badge.REVIEWED  { background: #dbeafe; color: #1e40af; }
+    .badge.APPROVED  { background: #dcfce7; color: #166534; }
+    .badge.FINALIZED { background: #f3e8ff; color: #6b21a8; }
+    .badge.ACTIVE    { background: #dcfce7; color: #166534; }
+    .badge.INACTIVE  { background: #f1f5f9; color: #475569; }
+    .badge.SUSPENDED { background: #fee2e2; color: #991b1b; }
+
+    /* ── Search bar ─────────────────────────────────────────────────────────── */
+    .search-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .search-bar input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; max-width: 320px; }
+    .search-bar input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+
+    /* ── Row actions ────────────────────────────────────────────────────────── */
+    .row-actions { position: relative; display: inline-block; }
+    .kebab-btn { background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 18px; color: #64748b; line-height: 1; }
+    .kebab-btn:hover { background: #f1f5f9; }
+    .action-dropdown { position: absolute; right: 0; top: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 50; min-width: 130px; display: none; }
+    .action-dropdown.open { display: block; }
+    .action-dropdown button { display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; cursor: pointer; font-size: 14px; color: #374151; }
+    .action-dropdown button:hover { background: #f1f5f9; }
+    .action-dropdown button.danger { color: #dc2626; }
+
+    /* ── Buttons ────────────────────────────────────────────────────────────── */
+    button.btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+    button.btn-primary   { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    button.btn-primary:hover:not([disabled]) { background: #2563eb; }
+    button.btn-secondary { background: #fff; color: #374151; border-color: #d1d5db; }
+    button.btn-secondary:hover:not([disabled]) { background: #f9fafb; }
+    button.btn-warning   { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+    button.btn-warning:hover:not([disabled]) { background: #d97706; }
+    button.btn-success   { background: #22c55e; color: #fff; border-color: #22c55e; }
+    button.btn-success:hover:not([disabled]) { background: #16a34a; }
+    button.btn-danger    { background: #dc2626; color: #fff; border-color: #dc2626; }
+    button.btn-danger:hover:not([disabled]) { background: #b91c1c; }
+    button[disabled] { opacity: .45; cursor: not-allowed; }
+
+    /* ── Modal ──────────────────────────────────────────────────────────────── */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: none; align-items: center; justify-content: center; }
+    .overlay.open { display: flex; }
+    [role="dialog"] { background: #fff; border-radius: 10px; width: 540px; max-width: calc(100vw - 32px); max-height: calc(100vh - 64px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+    .dialog-header { padding: 18px 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .dialog-header h2 { font-size: 16px; font-weight: 600; }
+    .dialog-body { flex: 1; overflow-y: auto; }
+    .dialog-footer { padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+
+    /* ── Tabs ───────────────────────────────────────────────────────────────── */
+    [role="tablist"] { display: flex; border-bottom: 1px solid #e2e8f0; padding: 0 24px; background: #f8fafc; flex-shrink: 0; }
+    [role="tab"] { padding: 10px 14px; background: none; border: none; cursor: pointer; font-size: 13px; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+    [role="tab"][aria-selected="true"] { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 500; }
+    [role="tabpanel"] { padding: 20px 24px; display: none; }
+    [role="tabpanel"].active { display: block; }
+
+    /* ── Form ───────────────────────────────────────────────────────────────── */
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-weight: 500; color: #374151; margin-bottom: 6px; font-size: 13px; }
+    .field input[type="text"],
+    .field input[type="email"],
+    .field input[type="number"],
+    .field input[type="password"],
+    .field select,
+    .field textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; font-family: inherit; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .field input.error { border-color: #ef4444; }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .error-message { margin-top: 4px; font-size: 12px; color: #ef4444; display: none; }
+    .error-message.visible { display: block; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .check-field { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; }
+    .check-field input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #3b82f6; }
+
+    /* ── Custom combobox ────────────────────────────────────────────────────── */
+    .combobox-wrapper { position: relative; }
+    [role="combobox"] { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; cursor: pointer; background: #fff; display: flex; align-items: center; justify-content: space-between; user-select: none; outline: none; }
+    [role="combobox"]:focus, [role="combobox"][aria-expanded="true"] { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+    .combo-arrow { color: #9ca3af; font-size: 10px; }
+    [role="listbox"] { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 200; display: none; max-height: 200px; overflow-y: auto; }
+    [role="listbox"].open { display: block; }
+    [role="option"] { padding: 8px 12px; cursor: pointer; font-size: 14px; }
+    [role="option"]:hover, [role="option"][aria-selected="true"] { background: #eff6ff; color: #3b82f6; }
+
+    /* ── Settings ───────────────────────────────────────────────────────────── */
+    .settings-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.07); padding: 24px; margin-bottom: 20px; }
+    .settings-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #0f172a; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+
+    /* ── Toast ──────────────────────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 8px; font-size: 14px; z-index: 1000; opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none; max-width: 340px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #166534; }
+    #toast.error   { background: #991b1b; }
+    #toast.warning { background: #92400e; }
+
+    /* ── Confirm dialog ─────────────────────────────────────────────────────── */
+    #confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+    #confirm-overlay.open { display: flex; }
+    .confirm-card { background: #fff; border-radius: 10px; width: 380px; padding: 28px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .confirm-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .confirm-card p  { font-size: 14px; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+    .confirm-card .buttons { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Empty state ────────────────────────────────────────────────────────── */
+    .empty { text-align: center; padding: 48px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ LOGIN ══════════════════════════════════ -->
+<div id="login-view">
+  <div class="login-card">
+    <div class="login-logo">Test<span style="color:#64748b;font-weight:400">App</span></div>
+    <h1>Sign in to your account</h1>
+    <p class="sub">Hint: admin@test.com / test123</p>
+    <br>
+    <div class="field">
+      <label for="login-email">Email address</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      <p class="error-message" id="login-error">Invalid email or password</p>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ APP ════════════════════════════════════ -->
+<div id="app-view" style="display:none">
+  <nav data-sidebar>
+    <div class="sidebar-logo">Test<span>App</span></div>
+    <div class="sidebar-section">Menu</div>
+    <a id="nav-dashboard" href="#/dashboard" onclick="navigate('dashboard')">Dashboard</a>
+    <a id="nav-budgets"   href="#/budgets"   onclick="navigate('budgets')">Budgets</a>
+    <a id="nav-students"  href="#/students"  onclick="navigate('students')">Students</a>
+    <a id="nav-settings"  href="#/settings"  onclick="navigate('settings')">Settings</a>
+    <div class="sidebar-bottom">
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name">Admin User</div>
+          <div class="user-role">Administrator</div>
+        </div>
+      </div>
+      <a href="#" onclick="doLogout()">Sign out</a>
+    </div>
+  </nav>
+
+  <div class="main-wrapper">
+    <nav aria-label="breadcrumb"><ol id="breadcrumb"></ol></nav>
+    <div role="toolbar" id="action-bar"></div>
+    <div class="content" id="page-content"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ BUDGET MODAL ═══════════════════════════════════ -->
+<div class="overlay" id="budget-overlay" onclick="handleOverlayClick(event,'budget-overlay')">
+  <div role="dialog" aria-modal="true" aria-labelledby="budget-modal-title" id="budget-modal">
+    <div class="dialog-header">
+      <h2 id="budget-modal-title">New Budget</h2>
+    </div>
+    <div role="tablist" aria-label="Budget sections">
+      <button role="tab" id="btab-core"     aria-selected="true"  onclick="switchTab('budget','core')">Core</button>
+      <button role="tab" id="btab-settings" aria-selected="false" onclick="switchTab('budget','settings')">Settings</button>
+      <button role="tab" id="btab-notes"    aria-selected="false" onclick="switchTab('budget','notes')">Notes</button>
+      <button role="tab" id="btab-files"    aria-selected="false" onclick="switchTab('budget','files')">Files</button>
+    </div>
+    <!-- Core -->
+    <div role="tabpanel" id="bpanel-core" class="active">
+      <div class="field">
+        <label for="b-name">Name</label>
+        <input type="text" id="b-name" placeholder="e.g. Annual Subvention 2025/2026">
+        <p class="error-message" id="b-err-name">Name is required</p>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label id="lbl-fiscal">Fiscal Cycle</label>
+          <div class="combobox-wrapper">
+            <div role="combobox" aria-haspopup="listbox" aria-expanded="false"
+                 aria-labelledby="lbl-fiscal" aria-controls="fiscal-list"
+                 id="b-fiscal-combo" tabindex="0"
+                 onclick="toggleCombo(event,'b-fiscal-combo','fiscal-list')"
+                 onkeydown="comboKeydown(event,'b-fiscal-combo','fiscal-list')">
+              <span id="b-fiscal-value">Select…</span>
+              <span class="combo-arrow">▼</span>
+            </div>
+            <ul role="listbox" id="fiscal-list">
+              <li role="option" onclick="pickCombo('b-fiscal','FY 2022/2023',this)">FY 2022/2023</li>
+              <li role="option" onclick="pickCombo('b-fiscal','FY 2023/2024',this)">FY 2023/2024</li>
+              <li role="option" onclick="pickCombo('b-fiscal','FY 2024/2025',this)">FY 2024/2025</li>
+              <li role="option" onclick="pickCombo('b-fiscal','FY 2025/2026',this)">FY 2025/2026</li>
+            </ul>
+          </div>
+        </div>
+        <div class="field">
+          <label for="b-category">Category</label>
+          <select id="b-category">
+            <option value="">Select category…</option>
+            <option value="subvention">Subvention</option>
+            <option value="scholarship">Scholarship</option>
+            <option value="operational">Operational</option>
+            <option value="research">Research</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="b-description">Description</label>
+        <textarea id="b-description" placeholder="Optional description…"></textarea>
+      </div>
+    </div>
+    <!-- Settings -->
+    <div role="tabpanel" id="bpanel-settings">
+      <label class="check-field"><input type="checkbox" id="b-auto-approve" aria-label="Enable auto-approve"><span>Enable auto-approve</span></label>
+      <label class="check-field"><input type="checkbox" id="b-include-all"  aria-label="Include all institutions"><span>Include all institutions</span></label>
+      <label class="check-field"><input type="checkbox" id="b-notify"       aria-label="Send email notification"><span>Send email notification</span></label>
+    </div>
+    <!-- Notes -->
+    <div role="tabpanel" id="bpanel-notes">
+      <div class="field">
+        <label for="b-notes">Internal Notes</label>
+        <textarea id="b-notes" placeholder="Notes visible only to reviewers…" style="min-height:120px"></textarea>
+      </div>
+    </div>
+    <!-- Files -->
+    <div role="tabpanel" id="bpanel-files">
+      <p style="color:#64748b;font-size:13px;margin-bottom:14px;">Attach supporting documents.</p>
+      <div style="border:2px dashed #d1d5db;border-radius:8px;padding:32px;text-align:center;color:#94a3b8;">
+        <p>Drag & drop or choose a file</p>
+        <input type="file" id="b-file" style="margin-top:10px" aria-label="Upload file">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" onclick="closeBudgetModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveBudget()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ STUDENT MODAL ══════════════════════════════════ -->
+<div class="overlay" id="student-overlay" onclick="handleOverlayClick(event,'student-overlay')">
+  <div role="dialog" aria-modal="true" aria-labelledby="student-modal-title" id="student-modal">
+    <div class="dialog-header">
+      <h2 id="student-modal-title">Add Student</h2>
+    </div>
+    <div role="tablist" aria-label="Student sections">
+      <button role="tab" id="stab-info"    aria-selected="true"  onclick="switchTab('student','info')">Personal Info</button>
+      <button role="tab" id="stab-program" aria-selected="false" onclick="switchTab('student','program')">Programme</button>
+    </div>
+    <!-- Personal Info -->
+    <div role="tabpanel" id="spanel-info" class="active">
+      <div class="field-row">
+        <div class="field">
+          <label for="s-firstname">First Name</label>
+          <input type="text" id="s-firstname" placeholder="First name">
+          <p class="error-message" id="s-err-firstname">First name is required</p>
+        </div>
+        <div class="field">
+          <label for="s-lastname">Last Name</label>
+          <input type="text" id="s-lastname" placeholder="Last name">
+          <p class="error-message" id="s-err-lastname">Last name is required</p>
+        </div>
+      </div>
+      <div class="field">
+        <label for="s-email">Email</label>
+        <input type="email" id="s-email" placeholder="student@university.edu">
+        <p class="error-message" id="s-err-email">Valid email is required</p>
+      </div>
+      <div class="field">
+        <label for="s-status">Status</label>
+        <select id="s-status">
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="SUSPENDED">Suspended</option>
+        </select>
+      </div>
+    </div>
+    <!-- Programme -->
+    <div role="tabpanel" id="spanel-program">
+      <div class="field">
+        <label for="s-program">Programme</label>
+        <select id="s-program">
+          <option value="">Select programme…</option>
+          <option value="BSc Computer Science">BSc Computer Science</option>
+          <option value="BSc Engineering">BSc Engineering</option>
+          <option value="BA Economics">BA Economics</option>
+          <option value="MBA">MBA</option>
+          <option value="MSc Data Science">MSc Data Science</option>
+        </select>
+        <p class="error-message" id="s-err-program">Programme is required</p>
+      </div>
+      <div class="field">
+        <label for="s-gpa">GPA</label>
+        <input type="number" id="s-gpa" placeholder="0.0" min="0" max="4" step="0.1">
+        <p class="error-message" id="s-err-gpa">GPA must be between 0 and 4</p>
+      </div>
+      <div class="field">
+        <label for="s-year">Year of Study</label>
+        <select id="s-year">
+          <option value="1">Year 1</option>
+          <option value="2">Year 2</option>
+          <option value="3">Year 3</option>
+          <option value="4">Year 4</option>
+        </select>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-secondary" onclick="closeStudentModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveStudent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ CONFIRM DIALOG ═════════════════════════════════ -->
+<div id="confirm-overlay">
+  <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h3 id="confirm-title">Confirm Action</h3>
+    <p  id="confirm-message">Are you sure?</p>
+    <div class="buttons">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger"    onclick="runConfirmAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ TOAST ══════════════════════════════════════ -->
+<div id="toast" role="alert" aria-live="assertive"></div>
+
+<!-- ═══════════════════════════ SCRIPT ═════════════════════════════════════ -->
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const VALID_USERS = [{ email: 'admin@test.com', password: 'test123', name: 'Admin User' }]
+
+let auth = { loggedIn: false, user: null }
+
+let budgets = [
+  { id:1, name:'FY 2024 Budget',           fiscalCycle:'FY 2024/2025', category:'Subvention',  status:'PENDING',   autoApprove:false },
+  { id:2, name:'Scholarship Fund 2024',    fiscalCycle:'FY 2024/2025', category:'Scholarship', status:'REVIEWED',  autoApprove:false },
+  { id:3, name:'Operations Q1',            fiscalCycle:'FY 2023/2024', category:'Operational', status:'APPROVED',  autoApprove:true  },
+  { id:4, name:'Postgrad Research Budget', fiscalCycle:'FY 2025/2026', category:'Research',    status:'PENDING',   autoApprove:false },
+  { id:5, name:'Postgraduate Scholarship', fiscalCycle:'FY 2025/2026', category:'Scholarship', status:'FINALIZED', autoApprove:false },
+]
+let budgetNextId = 6
+let selectedBudgetId = null
+
+let students = [
+  { id:1, firstname:'Kwame',   lastname:'Asante',     email:'k.asante@uni.edu',   program:'BSc Computer Science', gpa:3.8, year:3, status:'ACTIVE'   },
+  { id:2, firstname:'Ama',     lastname:'Mensah',      email:'a.mensah@uni.edu',   program:'BA Economics',        gpa:3.2, year:2, status:'ACTIVE'   },
+  { id:3, firstname:'Kofi',    lastname:'Boateng',     email:'k.boateng@uni.edu',  program:'BSc Engineering',     gpa:2.7, year:4, status:'INACTIVE' },
+  { id:4, firstname:'Akosua',  lastname:'Owusu',       email:'a.owusu@uni.edu',    program:'MBA',                 gpa:3.6, year:1, status:'ACTIVE'   },
+  { id:5, firstname:'Nana',    lastname:'Acheampong',  email:'n.acheampong@uni.edu',program:'MSc Data Science',   gpa:3.9, year:2, status:'ACTIVE'   },
+  { id:6, firstname:'Yaw',     lastname:'Ofori',       email:'y.ofori@uni.edu',    program:'BSc Computer Science',gpa:1.9, year:3, status:'SUSPENDED'},
+]
+let studentNextId = 7
+let studentSearch = ''
+
+let settings = { orgName:'State University', timeout:10000, notifications:true, autoApprove:false, theme:'Light' }
+
+let confirmAction = null
+
+// ── Routing ──────────────────────────────────────────────────────────────────
+const PAGES = { dashboard:'Dashboard', budgets:'Budgets', students:'Students', settings:'Settings' }
+
+function navigate(page) {
+  location.hash = '#/' + page
+}
+
+function getPage() {
+  const h = location.hash.replace('#/','').split('?')[0]
+  if (h === 'login') return 'login'
+  return PAGES[h] ? h : 'budgets'
+}
+
+window.addEventListener('hashchange', () => renderApp())
+
+function showLoginPage() {
+  document.getElementById('app-view').style.display = 'none'
+  document.getElementById('login-view').style.display = 'flex'
+}
+
+function showAppView() {
+  document.getElementById('login-view').style.display = 'none'
+  document.getElementById('app-view').style.display = 'flex'
+}
+
+function renderApp() {
+  const page = getPage()
+  if (page === 'login') { showLoginPage(); return }
+  showAppView()
+  // Sidebar active state
+  Object.keys(PAGES).forEach(p => {
+    const el = document.getElementById('nav-' + p)
+    if (el) el.classList.toggle('active', p === page)
+  })
+  // Breadcrumb
+  const bc = document.getElementById('breadcrumb')
+  bc.innerHTML = `<li>Home</li><li>${PAGES[page]}</li>`
+  // Render
+  if (page === 'dashboard') renderDashboard()
+  else if (page === 'budgets') renderBudgets()
+  else if (page === 'students') renderStudents()
+  else if (page === 'settings') renderSettings()
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim()
+  const pass  = document.getElementById('login-password').value
+  const user  = VALID_USERS.find(u => u.email === email && u.password === pass)
+  if (!user) {
+    document.getElementById('login-error').classList.add('visible')
+    return
+  }
+  document.getElementById('login-error').classList.remove('visible')
+  auth = { loggedIn: true, user }
+  document.getElementById('user-name').textContent = user.name
+  document.getElementById('user-avatar').textContent = user.name[0]
+  location.hash = '#/budgets'
+  renderApp()
+}
+
+function doLogout() {
+  auth = { loggedIn: false, user: null }
+  document.getElementById('login-email').value = ''
+  document.getElementById('login-password').value = ''
+  location.hash = '#/login'
+  renderApp()
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const ab = document.getElementById('action-bar')
+  ab.innerHTML = ''
+
+  const totalBudgets   = budgets.length
+  const pendingBudgets = budgets.filter(b => b.status === 'PENDING').length
+  const totalStudents  = students.length
+  const activeStudents = students.filter(s => s.status === 'ACTIVE').length
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Budgets</div>
+        <div class="stat-value">${totalBudgets}</div>
+        <div class="stat-sub">${pendingBudgets} pending review</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value">${totalStudents}</div>
+        <div class="stat-sub">${activeStudents} active</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Programmes</div>
+        <div class="stat-value">5</div>
+        <div class="stat-sub">Across 3 faculties</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Actions</div>
+        <div class="stat-value">${pendingBudgets}</div>
+        <div class="stat-sub">Require attention</div>
+      </div>
+    </div>
+    <p class="section-title">Recent Activity</p>
+    <div class="activity-list">
+      <div class="activity-item"><div class="activity-dot green"></div><div class="activity-text">Budget "Annual Subvention 2024/2025" created</div><div class="activity-time">2 min ago</div></div>
+      <div class="activity-item"><div class="activity-dot blue"></div><div class="activity-text">Student Nana Acheampong enrolled in MSc Data Science</div><div class="activity-time">1 hr ago</div></div>
+      <div class="activity-item"><div class="activity-dot amber"></div><div class="activity-text">Budget "Scholarship Fund — Engineering" awaiting approval</div><div class="activity-time">3 hr ago</div></div>
+      <div class="activity-item"><div class="activity-dot green"></div><div class="activity-text">Settings updated by Admin User</div><div class="activity-time">Yesterday</div></div>
+    </div>
+  `
+}
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+function renderBudgets() {
+  renderBudgetActionBar()
+  const rows = budgets.map(b => `
+    <tr data-row data-id="${b.id}" class="${selectedBudgetId===b.id?'selected':''}" onclick="selectBudget(${b.id})">
+      <td>${esc(b.name)}</td>
+      <td>${esc(b.fiscalCycle||'—')}</td>
+      <td>${esc(b.category||'—')}</td>
+      <td><span class="badge ${b.status}">${b.status}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="kebab-btn" aria-label="Actions for ${esc(b.name)}" onclick="toggleMenu(event,${b.id})">⋮</button>
+          <div class="action-dropdown" id="bmenu-${b.id}">
+            <button onclick="openEditBudget(${b.id})">Edit</button>
+            <button class="danger" onclick="promptConfirm('Delete this budget? This cannot be undone.',()=>deleteBudget(${b.id}))">Delete</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="5"><div class="empty">No budgets yet.</div></td></tr>`
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="table-wrapper">
+      <table id="budgets-table">
+        <thead><tr><th>Name</th><th>Fiscal Cycle</th><th>Category</th><th>Status</th><th></th></tr></thead>
+        <tbody id="budget-list">${rows}</tbody>
+      </table>
+    </div>`
+}
+
+function renderBudgetActionBar() {
+  const sel = budgets.find(b => b.id === selectedBudgetId)
+  const ab  = document.getElementById('action-bar')
+  let html  = `<button class="btn btn-primary" onclick="openNewBudget()">New</button>`
+  if (sel) {
+    if (sel.status === 'PENDING')  html += `<button class="btn btn-warning"  onclick="transitionBudget(${sel.id},'REVIEWED')">Review</button>`
+    if (sel.status === 'REVIEWED') html += `<button class="btn btn-success"  onclick="transitionBudget(${sel.id},'APPROVED')">Approve</button>`
+    if (sel.status === 'APPROVED') html += `<button class="btn btn-primary"  onclick="transitionBudget(${sel.id},'FINALIZED')">Finalize</button>`
+    if (['PENDING','REVIEWED'].includes(sel.status)) html += `<button class="btn btn-danger" onclick="transitionBudget(${sel.id},'PENDING')">Reject</button>`
+  }
+  ab.innerHTML = html
+}
+
+function selectBudget(id) {
+  selectedBudgetId = selectedBudgetId === id ? null : id
+  renderBudgets()
+}
+
+function transitionBudget(id, newStatus) {
+  const b = budgets.find(x => x.id === id)
+  if (!b) return
+  b.status = newStatus
+  showToast(`Budget status updated to ${newStatus}`, 'success')
+  renderBudgets()
+}
+
+function openNewBudget() {
+  window._editingBudgetId = null
+  document.getElementById('budget-modal-title').textContent = 'New Budget'
+  resetBudgetForm()
+  switchTab('budget','core')
+  document.getElementById('budget-overlay').classList.add('open')
+}
+
+function openEditBudget(id) {
+  closeAllMenus()
+  const b = budgets.find(x => x.id === id)
+  if (!b) return
+  window._editingBudgetId = id
+  document.getElementById('budget-modal-title').textContent = 'Edit Budget'
+  document.getElementById('b-name').value        = b.name
+  document.getElementById('b-fiscal-value').textContent = b.fiscalCycle || 'Select…'
+  window._bFiscal = b.fiscalCycle || ''
+  document.getElementById('b-category').value    = b.category ? b.category.toLowerCase() : ''
+  document.getElementById('b-description').value = b.description || ''
+  document.getElementById('b-auto-approve').checked = b.autoApprove || false
+  switchTab('budget','core')
+  document.getElementById('budget-overlay').classList.add('open')
+}
+
+function resetBudgetForm() {
+  ['b-name','b-description','b-notes'].forEach(id => { const el=document.getElementById(id); if(el)el.value='' })
+  document.getElementById('b-category').value = ''
+  document.getElementById('b-fiscal-value').textContent = 'Select…'
+  document.getElementById('b-fiscal-combo').setAttribute('aria-expanded','false')
+  document.getElementById('fiscal-list').classList.remove('open')
+  document.getElementById('b-auto-approve').checked = false
+  document.getElementById('b-include-all').checked  = false
+  document.getElementById('b-notify').checked       = false
+  window._bFiscal = ''
+  clearBudgetErrors()
+}
+
+function clearBudgetErrors() {
+  document.getElementById('b-err-name').classList.remove('visible')
+  document.getElementById('b-name').classList.remove('error')
+}
+
+function saveBudget() {
+  const name = document.getElementById('b-name').value.trim()
+  if (!name) {
+    document.getElementById('b-err-name').classList.add('visible')
+    document.getElementById('b-name').classList.add('error')
+    return
+  }
+  clearBudgetErrors()
+  const cat = document.getElementById('b-category')
+  const catText = cat.options[cat.selectedIndex]?.text || ''
+  const data = {
+    name,
+    fiscalCycle: window._bFiscal || '',
+    category:    catText === 'Select category…' ? '' : catText,
+    description: document.getElementById('b-description').value.trim(),
+    autoApprove: document.getElementById('b-auto-approve').checked,
+  }
+  if (window._editingBudgetId) {
+    const idx = budgets.findIndex(b => b.id === window._editingBudgetId)
+    if (idx !== -1) budgets[idx] = { ...budgets[idx], ...data }
+    showToast('Budget updated successfully', 'success')
+  } else {
+    budgets.push({ id: budgetNextId++, status: 'PENDING', ...data })
+    showToast('Budget created successfully', 'success')
+  }
+  closeBudgetModal()
+  renderBudgets()
+}
+
+function deleteBudget(id) {
+  budgets = budgets.filter(b => b.id !== id)
+  if (selectedBudgetId === id) selectedBudgetId = null
+  showToast('Budget deleted successfully', 'success')
+  renderBudgets()
+}
+
+function closeBudgetModal() {
+  document.getElementById('budget-overlay').classList.remove('open')
+}
+
+// ── Students ──────────────────────────────────────────────────────────────────
+function renderStudents() {
+  const ab = document.getElementById('action-bar')
+  ab.innerHTML = `<button class="btn btn-primary" onclick="openNewStudent()">Add Student</button>`
+
+  const filtered = students.filter(s =>
+    !studentSearch || `${s.firstname} ${s.lastname}`.toLowerCase().includes(studentSearch.toLowerCase())
+  )
+
+  const rows = filtered.map(s => `
+    <tr data-row data-id="${s.id}">
+      <td>${esc(s.firstname)} ${esc(s.lastname)}</td>
+      <td>${esc(s.email)}</td>
+      <td>${esc(s.program||'—')}</td>
+      <td>${s.gpa != null ? s.gpa.toFixed(1) : '—'}</td>
+      <td>Year ${s.year}</td>
+      <td><span class="badge ${s.status}">${s.status}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="kebab-btn" aria-label="Actions for ${esc(s.firstname)}" onclick="toggleMenu(event,${s.id},'s')">⋮</button>
+          <div class="action-dropdown" id="smenu-${s.id}">
+            <button onclick="openEditStudent(${s.id})">Edit</button>
+            <button class="danger" onclick="promptConfirm('Remove ${esc(s.firstname)} ${esc(s.lastname)} from the system?',()=>deleteStudent(${s.id}))">Remove</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="7"><div class="empty">No students found.</div></td></tr>`
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="search-bar">
+      <input id="student-search" type="text" placeholder="Search by name…"
+             value="${esc(studentSearch)}"
+             oninput="studentSearch=this.value;renderStudents()"
+             aria-label="Search students">
+    </div>
+    <div class="table-wrapper">
+      <table id="students-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Programme</th><th>GPA</th><th>Year</th><th>Status</th><th></th></tr></thead>
+        <tbody id="student-list">${rows}</tbody>
+      </table>
+    </div>`
+}
+
+function openNewStudent() {
+  window._editingStudentId = null
+  document.getElementById('student-modal-title').textContent = 'Add Student'
+  resetStudentForm()
+  switchTab('student','info')
+  document.getElementById('student-overlay').classList.add('open')
+}
+
+function openEditStudent(id) {
+  closeAllMenus()
+  const s = students.find(x => x.id === id)
+  if (!s) return
+  window._editingStudentId = id
+  document.getElementById('student-modal-title').textContent = 'Edit Student'
+  document.getElementById('s-firstname').value = s.firstname
+  document.getElementById('s-lastname').value  = s.lastname
+  document.getElementById('s-email').value     = s.email
+  document.getElementById('s-status').value    = s.status
+  document.getElementById('s-program').value   = s.program || ''
+  document.getElementById('s-gpa').value       = s.gpa != null ? s.gpa : ''
+  document.getElementById('s-year').value      = s.year || '1'
+  switchTab('student','info')
+  document.getElementById('student-overlay').classList.add('open')
+}
+
+function resetStudentForm() {
+  ['s-firstname','s-lastname','s-email','s-gpa'].forEach(id => { document.getElementById(id).value='' })
+  document.getElementById('s-status').value  = 'ACTIVE'
+  document.getElementById('s-program').value = ''
+  document.getElementById('s-year').value    = '1'
+  clearStudentErrors()
+}
+
+function clearStudentErrors() {
+  ['s-err-firstname','s-err-lastname','s-err-email','s-err-program','s-err-gpa']
+    .forEach(id => document.getElementById(id).classList.remove('visible'))
+}
+
+function saveStudent() {
+  const firstname = document.getElementById('s-firstname').value.trim()
+  const lastname  = document.getElementById('s-lastname').value.trim()
+  const email     = document.getElementById('s-email').value.trim()
+  const program   = document.getElementById('s-program').value
+  const gpaRaw    = document.getElementById('s-gpa').value
+  clearStudentErrors()
+  let valid = true
+  if (!firstname) { document.getElementById('s-err-firstname').classList.add('visible'); valid=false }
+  if (!lastname)  { document.getElementById('s-err-lastname').classList.add('visible');  valid=false }
+  if (!email || !email.includes('@')) { document.getElementById('s-err-email').classList.add('visible'); valid=false }
+  if (!program)   { document.getElementById('s-err-program').classList.add('visible');  valid=false }
+  const gpa = parseFloat(gpaRaw)
+  if (gpaRaw && (isNaN(gpa) || gpa < 0 || gpa > 4)) { document.getElementById('s-err-gpa').classList.add('visible'); valid=false }
+  if (!valid) return
+  const data = { firstname, lastname, email, program, gpa: gpaRaw ? gpa : null,
+                 year: parseInt(document.getElementById('s-year').value,10),
+                 status: document.getElementById('s-status').value }
+  if (window._editingStudentId) {
+    const idx = students.findIndex(s => s.id === window._editingStudentId)
+    if (idx !== -1) students[idx] = { ...students[idx], ...data }
+    showToast('Student updated successfully', 'success')
+  } else {
+    students.push({ id: studentNextId++, ...data })
+    showToast('Student added successfully', 'success')
+  }
+  closeStudentModal()
+  renderStudents()
+}
+
+function deleteStudent(id) {
+  students = students.filter(s => s.id !== id)
+  showToast('Student removed', 'success')
+  renderStudents()
+}
+
+function closeStudentModal() {
+  document.getElementById('student-overlay').classList.remove('open')
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function renderSettings() {
+  const ab = document.getElementById('action-bar')
+  ab.innerHTML = `<button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>`
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="settings-card">
+      <h3>General</h3>
+      <div class="field">
+        <label for="set-org">Organisation Name</label>
+        <input type="text" id="set-org" value="${esc(settings.orgName)}">
+      </div>
+      <div class="field">
+        <label for="set-timeout">Default Timeout (ms)</label>
+        <input type="number" id="set-timeout" value="${settings.timeout}" min="1000" step="1000">
+      </div>
+      <div class="field">
+        <label for="set-theme">Theme</label>
+        <select id="set-theme">
+          <option ${settings.theme==='Light'?'selected':''}>Light</option>
+          <option ${settings.theme==='Dark'?'selected':''}>Dark</option>
+          <option ${settings.theme==='System'?'selected':''}>System</option>
+        </select>
+      </div>
+    </div>
+    <div class="settings-card">
+      <h3>Notifications &amp; Automation</h3>
+      <label class="check-field">
+        <input type="checkbox" id="set-notifications" ${settings.notifications?'checked':''} aria-label="Enable email notifications">
+        <span>Enable email notifications</span>
+      </label>
+      <label class="check-field">
+        <input type="checkbox" id="set-autoapprove" ${settings.autoApprove?'checked':''} aria-label="Enable auto-approve for budgets">
+        <span>Enable auto-approve for budgets</span>
+      </label>
+    </div>
+  `
+}
+
+function saveSettings() {
+  settings.orgName       = document.getElementById('set-org').value.trim() || settings.orgName
+  settings.timeout       = parseInt(document.getElementById('set-timeout').value,10) || settings.timeout
+  settings.theme         = document.getElementById('set-theme').value
+  settings.notifications = document.getElementById('set-notifications').checked
+  settings.autoApprove   = document.getElementById('set-autoapprove').checked
+  showToast('Settings saved successfully', 'success')
+}
+
+// ── Shared modals / confirm ───────────────────────────────────────────────────
+function promptConfirm(message, action) {
+  closeAllMenus()
+  document.getElementById('confirm-message').textContent = message
+  confirmAction = action
+  document.getElementById('confirm-overlay').classList.add('open')
+}
+
+function runConfirmAction() {
+  closeConfirm()
+  if (confirmAction) { confirmAction(); confirmAction = null }
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open')
+}
+
+function handleOverlayClick(e, overlayId) {
+  if (e.target.id === overlayId) {
+    document.getElementById(overlayId).classList.remove('open')
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(modal, name) {
+  const prefix = modal === 'budget' ? 'b' : 's'
+  const tabs   = modal === 'budget'
+    ? ['core','settings','notes','files']
+    : ['info','program']
+  tabs.forEach(t => {
+    document.getElementById(`${prefix}tab-${t}`).setAttribute('aria-selected', t===name?'true':'false')
+    document.getElementById(`${prefix}panel-${t}`).classList.toggle('active', t===name)
+  })
+}
+
+// ── Custom combobox ───────────────────────────────────────────────────────────
+function toggleCombo(e, comboId, listId) {
+  // Stop propagation so the document-level click handler doesn't immediately
+  // close the listbox we are about to open.
+  e.stopPropagation()
+  const list  = document.getElementById(listId)
+  const combo = document.getElementById(comboId)
+  const open  = list.classList.contains('open')
+  // Close all other combos first
+  document.querySelectorAll('[role="listbox"].open').forEach(l => {
+    if (l.id !== listId) { l.classList.remove('open'); document.querySelector(`[aria-controls="${l.id}"]`)?.setAttribute('aria-expanded','false') }
+  })
+  list.classList.toggle('open', !open)
+  combo.setAttribute('aria-expanded', !open?'true':'false')
+}
+
+function pickCombo(name, value, el) {
+  if (name === 'b-fiscal') {
+    window._bFiscal = value
+    document.getElementById('b-fiscal-value').textContent = value
+    document.getElementById('b-fiscal-combo').setAttribute('aria-expanded','false')
+    document.getElementById('fiscal-list').classList.remove('open')
+    document.querySelectorAll('#fiscal-list [role="option"]').forEach(o => o.setAttribute('aria-selected','false'))
+    el.setAttribute('aria-selected','true')
+  }
+}
+
+function comboKeydown(e, comboId, listId) {
+  if (['Enter',' '].includes(e.key)) { e.preventDefault(); toggleCombo(comboId, listId) }
+  if (e.key === 'Escape') { document.getElementById(listId).classList.remove('open'); document.getElementById(comboId).setAttribute('aria-expanded','false') }
+}
+
+// ── Action menus ──────────────────────────────────────────────────────────────
+function toggleMenu(e, id, prefix='b') {
+  e.stopPropagation()
+  closeAllMenus()
+  document.getElementById(`${prefix}menu-${id}`)?.classList.add('open')
+}
+function closeAllMenus() {
+  document.querySelectorAll('.action-dropdown.open').forEach(m => m.classList.remove('open'))
+}
+document.addEventListener('click', closeAllMenus)
+document.addEventListener('click', () => {
+  document.querySelectorAll('[role="listbox"].open').forEach(l => {
+    l.classList.remove('open')
+    document.querySelector(`[aria-controls="${l.id}"]`)?.setAttribute('aria-expanded','false')
+  })
+})
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let _toastTimer = null
+function showToast(msg, type='success') {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.className = `show ${type}`
+  clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3500)
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Default: start logged in as admin so existing fixture tests work without auth steps.
+// To test the login flow specifically, navigate to #/login (Sign out also goes there).
+auth = { loggedIn: true, user: VALID_USERS[0] }
+document.getElementById('user-name').textContent = VALID_USERS[0].name
+document.getElementById('user-avatar').textContent = VALID_USERS[0].name[0]
+if (!location.hash || location.hash === '#/' || location.hash === '') location.hash = '#/budgets'
+renderApp()
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+# Module 06 — Budget Review, Approval and Finalization
+# Tester: Ekow | Audience: Budget Team
+
+AUTH standard-login
+MODULE budgeting
+
+# NOTE: Tests in this module that use the Review page navigate to it
+# in STEPS (or SETUP). The MODULE only gets us to the budgeting dashboard.
+
+---
+
+TEST P-01: Open the Review page for a PENDING budget
+
+SETUP
+  select first budget with status "PENDING" from left panel
+
+STEPS
+  click "Review" in action bar
+  wait for page to load
+
+ASSERT
+  url contains "/review"
+  "Review Process" is visible in breadcrumb
+  "Budgeted Fees" is visible in sidebar
+  "Collections" is visible in sidebar
+  "Priority Areas" is visible in sidebar
+  "Permitted Institutions" is visible in sidebar
+  "sections need attention" is visible
+
+# DISCOVERY: This reveals a tension with Module 05 P-27.
+# Module 05 P-27 says clicking "Review" opens a modal with "Confirm Review".
+# Module 06 P-01 says the same button navigates to a full page.
+# These describe the same button but expect different results.
+# Either: (a) the test in Module 05 compressed the full flow into two steps,
+# or (b) there are two different UI paths. This needs to be verified during testing.
+
+---
+
+TEST P-08: Verify the Budgeted Fees section (with notes)
+
+SETUP
+  select first budget with status "PENDING" from left panel
+  click "Review" in action bar
+  wait for page to load
+
+STEPS
+  click "Budgeted Fees" in sidebar
+  click "Verify"
+  type "Cross-checked with finance spreadsheet" into "Notes"
+  click "Confirm Verification"
+
+ASSERT
+  toast shows "Section verified successfully"
+  "Budgeted Fees" in sidebar shows "verified"
+  "Verify" is disabled
+
+---
+
+TEST P-13: Sidebar shows all sections verified when all 4 are verified
+
+# Depends on: sections having been verified in prior tests or via SETUP.
+# This test verifies the final UI state — the green banner.
+
+SETUP
+  select first budget with status "PENDING" from left panel
+  click "Review" in action bar
+  wait for page to load
+  # Verify all 4 sections
+  click "Budgeted Fees" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+  click "Collections" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+  click "Priority Areas" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+  click "Permitted Institutions" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+
+ASSERT
+  "All sections verified" is visible
+  "sections need attention" is not visible
+
+# SPEC GAP: SETUP is getting long here. In reality these verification steps ARE
+# test steps. This pattern suggests we may need a way to declare test dependencies:
+#   DEPENDS ON P-08, P-10, P-11, P-12
+# so the executor can run prerequisite tests before this one rather than
+# duplicating all the setup steps inline.
+
+---
+
+TEST P-14: Confirm Review — move budget from PENDING to REVIEWED
+
+SETUP
+  select first budget with status "PENDING" from left panel
+  click "Review" in action bar
+  wait for page to load
+  # Ensure all 4 sections are verified before attempting Confirm Review
+
+STEPS
+  click "Confirm Review"
+
+ASSERT
+  toast shows "Budget successfully marked as Reviewed"
+  url is "/budgeting"
+  status badge equals "REVIEWED"
+
+---
+
+TEST P-16: Approve a REVIEWED budget with all requirements met
+
+SETUP
+  select first budget with status "REVIEWED" from left panel
+
+STEPS
+  click "Approve" in action bar
+
+ASSERT
+  all requirements show "verified" in checklist
+  "Confirm Approval" is enabled
+
+STEPS
+  click "Confirm Approval"
+
+ASSERT
+  toast contains "successfully"
+  status badge equals "APPROVED"
+  "Finalize" is visible in action bar
+
+# SPEC GAP: Two STEPS/ASSERT blocks in one test. Some tests naturally have a
+# mid-test assertion (observe something, then act on it). We need to decide:
+# allow multiple STEPS/ASSERT pairs per TEST, or split into separate tests.
+# Splitting is cleaner but loses the sequential narrative.
+
+---
+
+TEST P-19: Finalize an APPROVED budget
+
+SETUP
+  select first budget with status "APPROVED" from left panel
+
+STEPS
+  click "Finalize" in action bar
+  click "Finalize Now"
+
+ASSERT
+  toast contains "successfully"
+  status badge equals "FINALIZED"
+  "Finalize" is not visible in action bar
+
+---
+
+TEST N-01: Attempt to Confirm Review when not all sections are verified
+
+SETUP
+  select first budget with status "PENDING" from left panel
+  click "Review" in action bar
+  wait for page to load
+  # Verify only 2 of 4 sections
+  click "Budgeted Fees" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+  click "Collections" in sidebar
+  click "Verify"
+  click "Confirm Verification"
+
+STEPS
+  click "Confirm Review"
+
+ASSERT
+  error shows "Please verify all sections before completing the review"
+  url contains "/review"
+  status badge does not equal "REVIEWED"
+
+# SPEC GAP: "status badge does not equal" — we need a negation variant for content assertions.
+
+---
+
+TEST N-07: Confirm Review is disabled for user without ChangeStatus permission
+
+AUTH restricted-reviewer
+# Requires: auth/restricted-reviewer.axtest — a user who can VERIFY sections
+# (has ApprovedFeesChecked etc.) but lacks Budgets.ChangeStatus permission.
+
+SETUP
+  select first budget with status "PENDING" from left panel
+  click "Review" in action bar
+  wait for page to load
+
+ASSERT
+  "Confirm Review" is disabled
+
+---
+
+TEST E-07: Approval modal text changes between unmet and met requirements
+
+SETUP
+  select first budget with status "REVIEWED" from left panel
+
+STEPS
+  click "Approve" in action bar
+
+ASSERT
+  "Action Required" is visible
+  "Confirm Approval" is disabled
+
+STEPS
+  dismiss dialog
+  # Fix the missing requirement — for this test, assume fees are unverified.
+  # In a real run this would involve going to the review page and verifying the section.
+  # This edge case test is best verified manually or via a dedicated fixture.
+
+# SPEC NOTE: Some edge case tests that verify mid-flow UI state changes are
+# difficult to fully automate without test fixtures that create specific data states.
+# These are good candidates for "semi-automated" tests in V1 — automate what we can,
+# note what requires a specific pre-existing data state.

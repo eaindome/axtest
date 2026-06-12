@@ -1,0 +1,521 @@
+# axtest Fixture Tests
+# Exercises the execution engine against the multi-module fixture app.
+#
+# Setup: node tests/fixtures/serve.js   (serves on http://localhost:4321)
+# Run:   axtest run tests/fixtures/fixture.axtest --env http://localhost:4321
+#
+# App modules: Budgets (#/budgets), Students (#/students),
+#              Settings (#/settings), Dashboard (#/dashboard), Login (#/login)
+# The app starts pre-authenticated; navigate to /#/login to test the login flow.
+
+---
+
+# ─── BUDGETS MODULE ────────────────────────────────────────────────────────────
+
+TEST F-01: Initial page state
+
+STEPS
+  navigate to "/"
+
+ASSERT
+  "New" is visible in action bar
+  "FY 2024 Budget" is visible
+  "Scholarship Fund 2024" is visible
+  "PENDING" is visible
+  "REVIEWED" is visible
+  "Dashboard" is visible in sidebar
+  "Budgets" is visible in sidebar
+
+---
+
+TEST F-02: Create a budget — happy path (name + fiscal cycle)
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Annual Budget 2025" into "Name"
+  select first from "Fiscal Cycle"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  modal is closed
+  "Annual Budget 2025" is visible
+
+---
+
+TEST F-03: Validation — save with no name shows form error
+
+STEPS
+  navigate to "/"
+  click "New"
+  click "Save"
+
+ASSERT
+  form error shows "Name is required"
+  modal stays open
+
+---
+
+TEST F-04: Cancel closes modal without saving
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Ghost Budget" into "Name"
+  click "Cancel"
+
+ASSERT
+  modal is closed
+  "Ghost Budget" is not visible
+
+---
+
+TEST F-05: Tab switching — switch to Settings, check a box, come back and save
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Settings Budget" into "Name"
+  click tab "Settings"
+  check "Enable auto-approve"
+  click tab "Core"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Settings Budget" is visible
+
+---
+
+TEST F-06: Select from native dropdown
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Scholarship Budget" into "Name"
+  select "Scholarship" from "Category"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Scholarship Budget" is visible
+
+---
+
+TEST F-07: Select a named option from the fiscal cycle combobox
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Named Cycle Budget" into "Name"
+  select "FY 2025/2026" from "Fiscal Cycle"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Named Cycle Budget" is visible
+
+---
+
+TEST F-08: Edit an existing budget
+
+STEPS
+  navigate to "/"
+  open action menu for "FY 2024 Budget"
+  click "Edit"
+  clear "Name"
+  type "FY 2024 Budget (revised)" into "Name"
+  click "Save"
+
+ASSERT
+  toast shows "Budget updated successfully"
+  "FY 2024 Budget (revised)" is visible
+
+---
+
+TEST F-09: Delete a budget via action menu
+
+STEPS
+  navigate to "/"
+  open action menu for "Operations Q1"
+  click "Delete"
+  confirm dialog
+
+ASSERT
+  toast contains "deleted"
+  "Operations Q1" is not visible
+
+---
+
+TEST F-10: Dismiss the delete confirmation — item is preserved
+
+STEPS
+  navigate to "/"
+  open action menu for "Scholarship Fund 2024"
+  click "Delete"
+  dismiss dialog
+
+ASSERT
+  modal is closed
+  "Scholarship Fund 2024" is visible
+
+---
+
+TEST F-11: Tab visibility on modal open
+
+STEPS
+  navigate to "/"
+  click "New"
+
+ASSERT
+  "Core" tab is visible
+  "Settings" tab is visible
+  "Files" tab is visible
+  "Core" tab is active
+  modal is open
+
+---
+
+TEST F-12: Correct tab becomes active when clicked
+
+STEPS
+  navigate to "/"
+  click "New"
+  click tab "Settings"
+
+ASSERT
+  "Settings" tab is active
+
+---
+
+TEST F-13: URL stays at root
+
+STEPS
+  navigate to "/"
+
+ASSERT
+  url contains "localhost:4321"
+
+---
+
+TEST F-14: Row selection reveals status-conditional action buttons
+
+STEPS
+  navigate to "/"
+  click "FY 2024 Budget"
+
+ASSERT
+  "Review" is visible in action bar
+  "Reject" is visible in action bar
+
+---
+
+TEST F-15: Reviewing a PENDING budget updates its status
+
+STEPS
+  navigate to "/"
+  click "FY 2024 Budget"
+  click "Review" in action bar
+
+ASSERT
+  toast shows "Budget status updated to REVIEWED"
+
+---
+
+TEST F-16: Notes tab — can type internal notes
+
+STEPS
+  navigate to "/"
+  click "New"
+  type "Notes Budget" into "Name"
+  click tab "Notes"
+  type "Reviewed by finance committee" into "Internal Notes"
+  click tab "Core"
+  click "Save"
+
+ASSERT
+  toast shows "Budget created successfully"
+  "Notes Budget" is visible
+
+---
+
+# ─── DASHBOARD MODULE ──────────────────────────────────────────────────────────
+
+TEST D-01: Dashboard page shows statistics and recent activity
+
+STEPS
+  navigate to "/#/dashboard"
+
+ASSERT
+  url contains "#/dashboard"
+  "Total Budgets" is visible
+  "Total Students" is visible
+  "Active Programmes" is visible
+  "Recent Activity" is visible
+
+---
+
+TEST D-02: Navigate to dashboard via sidebar link
+
+STEPS
+  navigate to "/"
+  click "Dashboard" in sidebar
+
+ASSERT
+  url contains "#/dashboard"
+  "Total Budgets" is visible
+
+---
+
+TEST D-03: Return from dashboard to budgets via sidebar
+
+STEPS
+  navigate to "/#/dashboard"
+  click "Budgets" in sidebar
+
+ASSERT
+  url contains "#/budgets"
+  "FY 2024 Budget" is visible
+  "New" is visible in action bar
+
+---
+
+# ─── STUDENTS MODULE ───────────────────────────────────────────────────────────
+
+TEST S-01: Students list loads with initial data
+
+STEPS
+  navigate to "/#/students"
+
+ASSERT
+  url contains "#/students"
+  "Add Student" is visible in action bar
+  "Kwame Asante" is visible
+  "Ama Mensah" is visible
+  "ACTIVE" is visible
+  "SUSPENDED" is visible
+
+---
+
+TEST S-02: Add a student — happy path
+
+STEPS
+  navigate to "/#/students"
+  click "Add Student"
+  type "John" into "First Name"
+  type "Doe" into "Last Name"
+  type "john.doe@uni.edu" into "Email"
+  click tab "Programme"
+  select "BSc Computer Science" from "Programme"
+  type "3.5" into "GPA"
+  click "Save"
+
+ASSERT
+  toast shows "Student added successfully"
+  modal is closed
+  "John Doe" is visible
+
+---
+
+TEST S-03: Add student — empty form shows validation errors
+
+STEPS
+  navigate to "/#/students"
+  click "Add Student"
+  click "Save"
+
+ASSERT
+  form error shows "First name is required"
+  modal stays open
+
+---
+
+TEST S-04: Cancel student modal discards input
+
+STEPS
+  navigate to "/#/students"
+  click "Add Student"
+  type "Ghost" into "First Name"
+  type "Student" into "Last Name"
+  click "Cancel"
+
+ASSERT
+  modal is closed
+  "Ghost Student" is not visible
+
+---
+
+TEST S-05: Search filters the student list
+
+STEPS
+  navigate to "/#/students"
+  type "Kwame" into "Search students"
+
+ASSERT
+  "Kwame Asante" is visible
+  "Ama Mensah" is not visible
+
+---
+
+TEST S-06: Edit a student — update first name
+
+STEPS
+  navigate to "/#/students"
+  open action menu for "Kwame"
+  click "Edit"
+  clear "First Name"
+  type "Kweku" into "First Name"
+  click "Save"
+
+ASSERT
+  toast shows "Student updated successfully"
+  "Kweku Asante" is visible
+
+---
+
+TEST S-07: Remove a student via action menu
+
+STEPS
+  navigate to "/#/students"
+  open action menu for "Yaw"
+  click "Remove"
+  confirm dialog
+
+ASSERT
+  toast contains "removed"
+  "Yaw Ofori" is not visible
+
+---
+
+TEST S-08: Dismiss remove confirmation — student is preserved
+
+STEPS
+  navigate to "/#/students"
+  open action menu for "Kofi"
+  click "Remove"
+  dismiss dialog
+
+ASSERT
+  modal is closed
+  "Kofi Boateng" is visible
+
+---
+
+TEST S-09: Student modal tab switching — Programme tab becomes active
+
+STEPS
+  navigate to "/#/students"
+  click "Add Student"
+  click tab "Programme"
+
+ASSERT
+  "Programme" tab is active
+  "Programme" is visible
+  "GPA" is visible
+
+---
+
+TEST S-10: Student year of study field is accessible
+
+STEPS
+  navigate to "/#/students"
+  click "Add Student"
+  click tab "Programme"
+  select "Year 3" from "Year of Study"
+  click tab "Personal Info"
+
+ASSERT
+  modal is open
+
+---
+
+# ─── SETTINGS MODULE ───────────────────────────────────────────────────────────
+
+TEST SET-01: Settings page loads correctly
+
+STEPS
+  navigate to "/#/settings"
+
+ASSERT
+  url contains "#/settings"
+  "Organisation Name" is visible
+  "Default Timeout (ms)" is visible
+  "Save Settings" is visible in action bar
+
+---
+
+TEST SET-02: Save settings without changes shows success toast
+
+STEPS
+  navigate to "/#/settings"
+  click "Save Settings"
+
+ASSERT
+  toast shows "Settings saved successfully"
+
+---
+
+TEST SET-03: Update organisation name and save
+
+STEPS
+  navigate to "/#/settings"
+  clear "Organisation Name"
+  type "New University" into "Organisation Name"
+  click "Save Settings"
+
+ASSERT
+  toast shows "Settings saved successfully"
+
+---
+
+TEST SET-04: Toggle notification checkbox and save
+
+STEPS
+  navigate to "/#/settings"
+  check "Enable auto-approve for budgets"
+  click "Save Settings"
+
+ASSERT
+  toast shows "Settings saved successfully"
+
+---
+
+TEST SET-05: Change theme via native select and save
+
+STEPS
+  navigate to "/#/settings"
+  select "Dark" from "Theme"
+  click "Save Settings"
+
+ASSERT
+  toast shows "Settings saved successfully"
+
+---
+
+# ─── LOGIN MODULE ──────────────────────────────────────────────────────────────
+
+TEST L-01: Wrong password shows error message
+
+STEPS
+  navigate to "/#/login"
+  type "admin@test.com" into "Email address"
+  type "wrongpassword" into "Password"
+  click "Sign In"
+
+ASSERT
+  error shows "Invalid email or password"
+
+---
+
+TEST L-02: Valid credentials navigate to the budgets page
+
+STEPS
+  navigate to "/#/login"
+  type "admin@test.com" into "Email address"
+  type "test123" into "Password"
+  click "Sign In"
+
+ASSERT
+  url contains "#/budgets"
+  "FY 2024 Budget" is visible
