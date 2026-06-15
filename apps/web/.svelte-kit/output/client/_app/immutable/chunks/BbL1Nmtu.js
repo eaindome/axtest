@@ -1,0 +1,1 @@
+import{z as e}from"./BDr2kAM-.js";import{w as s}from"./95CQaKvR.js";const t=localStorage.getItem("axtest_mock"),r=t!==null?t==="true":e,a=s(r);a.subscribe(o=>localStorage.setItem("axtest_mock",String(o)));export{a as u};

@@ -1,0 +1,33 @@
+{
+	"/(auth)": [
+		"src/routes/+layout.ts"
+	],
+	"/(app)": [
+		"src/routes/+layout.ts"
+	],
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/(app)/dashboard": [
+		"src/routes/+layout.ts"
+	],
+	"/(app)/docs": [
+		"src/routes/+layout.ts"
+	],
+	"/(app)/editor": [
+		"src/routes/+layout.ts"
+	],
+	"/(auth)/login": [
+		"src/routes/+layout.ts"
+	],
+	"/(app)/projects": [
+		"src/routes/+layout.ts"
+	],
+	"/(app)/projects/[id]": [
+		"src/routes/+layout.ts"
+	],
+	"/(auth)/register": [
+		"src/routes/+layout.ts"
+	]
+}

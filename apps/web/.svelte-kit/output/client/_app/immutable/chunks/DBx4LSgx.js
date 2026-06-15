@@ -1,0 +1,1 @@
+import{w as a,d as s}from"./95CQaKvR.js";const e=a({user:null,token:localStorage.getItem("axtest_token")});s(e,t=>!!t.token);function n(t,o){localStorage.setItem("axtest_token",o),e.set({user:t,token:o})}function r(){localStorage.removeItem("axtest_token"),e.set({user:null,token:null})}export{e as a,r as c,n as s};

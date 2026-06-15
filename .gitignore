@@ -35,3 +35,14 @@ Thumbs.db
 # Editor
 .vscode/settings.json
 .idea/
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+
+# Local app settings
+**/appsettings.local.json
+**/appsettings.*.local.json

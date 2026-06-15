@@ -1,0 +1,1 @@
+import{w as e}from"./95CQaKvR.js";const o=localStorage.getItem("axtest_dark")==="true",r=e(o);r.subscribe(t=>{localStorage.setItem("axtest_dark",String(t)),document.documentElement.classList.toggle("dark",t)});export{r as d};
