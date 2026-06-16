@@ -1,5 +1,5 @@
 import type { ProjectExplorer, TestFile } from '../types'
-import { mockFiles as seedFiles } from './data'
+import { mockFiles as seedFiles, mockTaskflowFiles } from './data'
 
 export const DEFAULT_FOLDERS = ['auth', 'modules'] as const
 
@@ -22,7 +22,12 @@ function foldersFromFiles(files: TestFile[]): string[] {
 
 function ensureProject(projectId: number) {
   if (!fileStore.has(projectId)) {
-    fileStore.set(projectId, projectId === 1 ? [...seedFiles] : [])
+    fileStore.set(
+      projectId,
+      projectId === 1 ? [...seedFiles]
+      : projectId === 3 ? [...mockTaskflowFiles]
+      : [],
+    )
     folderStore.set(projectId, [])
   }
 }

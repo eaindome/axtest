@@ -11,7 +11,7 @@
 </script>
 
 <header class="h-14 shrink-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800
-               flex items-center gap-3 px-4">
+               flex items-center gap-3 pl-14 pr-4">
 
   <!-- Left: workspace switcher -->
   <WorkspaceSwitcher />

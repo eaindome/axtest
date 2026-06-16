@@ -6,6 +6,9 @@ const store: Record<number, Partial<Record<'staging' | 'local', Override>>> = {
   1: {
     staging: { baseUrl: 'https://staging.portal.ssmas.com', useProductionFallback: false },
   },
+  3: {
+    staging: { baseUrl: 'https://staging.todo.taskflow.app', useProductionFallback: false },
+  },
 }
 
 function productionUrl(project: Project) {

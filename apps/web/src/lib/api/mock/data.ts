@@ -13,7 +13,7 @@ export const mockWorkspaces: Workspace[] = [
     id: 1,
     name: 'SSMAS',
     memberCount: 3,
-    projectCount: 2,
+    projectCount: 3,
     createdAt: '2025-01-10T08:00:00Z'
   }
 ]
@@ -38,6 +38,16 @@ export const mockProjects: Project[] = [
     systemCount: 3,
     createdAt: '2025-02-01T09:00:00Z',
     updatedAt: '2025-06-08T11:00:00Z'
+  },
+  {
+    id: 3,
+    name: 'TaskFlow Todo',
+    baseUrl: 'https://todo.taskflow.app',
+    description: 'Training todo app used in the knowledge base walkthrough',
+    runCount: 6,
+    systemCount: 3,
+    createdAt: '2025-04-04T08:30:00Z',
+    updatedAt: '2026-06-16T07:00:00Z'
   }
 ]
 
@@ -351,5 +361,116 @@ TEST "Login with valid student credentials"
   ASSERT
     assert "Student Dashboard" is_visible
     assert url contains /dashboard`
+  }
+]
+
+export const mockTaskflowFiles: TestFile[] = [
+  {
+    id: 'tf-auth-1',
+    name: 'standard-login.axtest',
+    path: 'auth/standard-login.axtest',
+    updatedAt: '2026-06-16T07:10:00Z',
+    content: `AUTH standard-login
+
+STEPS
+  navigate to /login
+  type "qa@taskflow.app" in "Email"
+  type "Password123!" in "Password"
+  click "Sign in"
+
+ASSERT
+  assert "Tasks" is_visible`
+  },
+  {
+    id: 'tf-mod-1',
+    name: 'add-task.axtest',
+    path: 'modules/todos/add-task.axtest',
+    updatedAt: '2026-06-16T07:10:00Z',
+    content: `---
+title: Add task
+base_url: https://todo.taskflow.app
+---
+
+AUTH standard-login
+
+RULES
+  field "Task title" is required
+  field "Task title" length between 1 and 120
+  on empty_title show error "Title is required"
+  on invalid_title show error "Title is too long"
+  element "Add task" is_enabled
+
+TEST "Add a new task — seed"
+  TAG seed
+  STEPS
+    navigate to /tasks
+    click "Add task"
+    type "Buy groceries" in "Task title"
+    click "Save"
+  ASSERT
+    assert "Buy groceries" is_visible
+    assert toast shows "Task created"`
+  },
+  {
+    id: 'tf-mod-2',
+    name: 'complete-task.axtest',
+    path: 'modules/todos/complete-task.axtest',
+    updatedAt: '2026-06-16T07:10:00Z',
+    content: `---
+title: Complete task
+base_url: https://todo.taskflow.app
+---
+
+AUTH standard-login
+
+TEST "Mark task complete — seed"
+  TAG seed
+  STEPS
+    navigate to /tasks
+    click "Buy groceries"
+    click "Mark complete"
+  ASSERT
+    assert "Buy groceries" is_visible
+    assert url contains "filter=active"`
+  },
+  {
+    id: 'tf-mod-3',
+    name: 'filter-tasks.axtest',
+    path: 'modules/todos/filter-tasks.axtest',
+    updatedAt: '2026-06-16T07:10:00Z',
+    content: `---
+title: Filter tasks
+base_url: https://todo.taskflow.app
+---
+
+AUTH standard-login
+
+TEST "Filter completed tasks — seed"
+  TAG seed
+  STEPS
+    navigate to /tasks
+    click "Completed"
+  ASSERT
+    assert "Completed" is_visible
+    assert url contains "filter=done"`
+  },
+  {
+    id: 'tf-scn-1',
+    name: 'smoke.axtest',
+    path: 'scenarios/smoke.axtest',
+    updatedAt: '2026-06-16T07:10:00Z',
+    content: `---
+title: Smoke
+base_url: https://todo.taskflow.app
+---
+
+AUTH standard-login
+
+TEST "Open tasks dashboard"
+  TAG seed
+  STEPS
+    navigate to /tasks
+  ASSERT
+    assert "Tasks" is_visible`
   }
 ]

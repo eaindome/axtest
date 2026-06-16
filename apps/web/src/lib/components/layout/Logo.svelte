@@ -5,10 +5,11 @@
     size?: Size
     tagline?: string | null
     align?: 'start' | 'center'
+    stacked?: boolean
     class?: string
   }
 
-  let { size = 'md', tagline = null, align = 'start', class: className = '' }: Props = $props()
+  let { size = 'md', tagline = null, align = 'start', stacked = false, class: className = '' }: Props = $props()
 
   const sizeClass: Record<Size, string> = {
     sm: 'logo--sm',
@@ -17,9 +18,9 @@
   }
 </script>
 
-<span class="logo {sizeClass[size]} logo--{align} {className}">
+<span class="logo {sizeClass[size]} logo--{align} {stacked ? 'logo--stacked' : ''} {className}">
   <span class="logo-wordmark" aria-label="axtest">
-    <span class="logo-ax">ax</span><span class="logo-test">test</span>
+    <span class="logo-ax">ax</span><span class="logo-test">{stacked ? ' test' : 'test'}</span>
   </span>
   {#if tagline}
     <span class="logo-tagline">{tagline}</span>
@@ -39,6 +40,16 @@
     align-items: baseline;
     line-height: 1;
     white-space: nowrap;
+  }
+
+  .logo--stacked .logo-wordmark {
+    flex-direction: column;
+    align-items: center;
+    line-height: 0.95;
+  }
+
+  .logo--stacked .logo-test {
+    margin-top: -0.15rem;
   }
 
   .logo-ax {

@@ -64,6 +64,7 @@
     const v = $page.url.searchParams.get('project')
     return v ? Number(v) : null
   })
+  const paramFilePath = $derived(() => $page.url.searchParams.get('file'))
 
   const validation = $derived(countDiagnostics(validateAxtest(editorContent)))
   const editorDiagnostics = $derived(validateAxtest(editorContent))
@@ -224,7 +225,13 @@
       files = explorer.files
       explorerFolders = explorer.folders
       await loadEnvironments(project.id)
-      if (files.length > 0) selectFile(files[0])
+      if (files.length > 0) {
+        const targetPath = paramFilePath()
+        const fromQuery = targetPath
+          ? files.find(f => f.path === targetPath || f.name === targetPath)
+          : null
+        selectFile(fromQuery ?? files[0])
+      }
     } catch {}
     loadingFiles = false
   }

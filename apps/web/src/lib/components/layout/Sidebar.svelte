@@ -7,6 +7,12 @@
   import type { Project } from '$lib/api'
   import Logo from '$lib/components/layout/Logo.svelte'
 
+  interface Props {
+    compact?: boolean
+  }
+
+  let { compact = false }: Props = $props()
+
   const nav = [
     { href: '/dashboard', label: 'Dashboard',   icon: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75' },
     { href: '/projects',  label: 'Projects',    icon: 'M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z' },
@@ -79,14 +85,15 @@
   })
 </script>
 
-<aside class="w-56 shrink-0 flex flex-col h-screen bg-gradient-to-b from-zinc-50 to-zinc-100/80 dark:from-zinc-950 dark:to-zinc-900 border-r border-zinc-200/80 dark:border-zinc-800">
-  <div class="h-14 px-4 flex items-center border-b border-zinc-200/80 dark:border-zinc-800">
+<aside class="{compact ? 'w-16' : 'w-56'} transition-[width] duration-300 ease-out shrink-0 flex flex-col h-screen bg-gradient-to-b from-zinc-50 to-zinc-100/80 dark:from-zinc-950 dark:to-zinc-900 border-r border-zinc-200/80 dark:border-zinc-800">
+  <div class="h-14 {compact ? 'px-2 justify-center' : 'px-4'} flex items-center border-b border-zinc-200/80 dark:border-zinc-800">
     <a href="/dashboard" class="group min-w-0 transition-opacity hover:opacity-90">
-      <Logo size="sm" tagline="Test automation" class="min-w-0" />
+      <Logo size="sm" tagline={compact ? null : 'Test automation'} stacked={compact} class="min-w-0" />
     </a>
   </div>
 
-  <div class="relative px-3 pt-3 pb-2">
+  <div class="relative px-3 overflow-hidden transition-all duration-300 ease-out {compact ? 'pt-0 pb-0 max-h-0 opacity-0' : 'pt-3 pb-2 max-h-28 opacity-100'}">
+    {#if !compact}
     <div class="relative">
       <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-zinc-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -128,53 +135,65 @@
         {/if}
       </div>
     {/if}
+    {/if}
   </div>
 
-  <div class="px-3 pb-2">
+  <div class="{compact ? 'px-2 pt-2 pb-2' : 'px-3 pb-2'}">
     <a href="/editor" class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm shadow-amber-500/20 transition-all">
       <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-      New test
+      {#if !compact}New test{/if}
     </a>
   </div>
 
-  <nav class="flex-1 px-3 py-1 overflow-y-auto sidebar-scroll">
-    <p class="px-2.5 pb-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-widest">Menu</p>
+  <nav class="flex-1 {compact ? 'px-2 py-2' : 'px-3 py-1'} overflow-y-auto sidebar-scroll">
+    <p class="px-2.5 pb-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-widest overflow-hidden transition-all duration-200 {compact ? 'max-h-0 opacity-0 pb-0' : 'max-h-8 opacity-100'}">Menu</p>
     <div class="space-y-0.5">
       {#each nav as item}
         {@const active = isActive(item.href)}
-        <a href={item.href} class="group relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all {active ? 'bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-200'}">
+        <a href={item.href} title={compact ? item.label : undefined} class="group relative flex items-center {compact ? 'justify-center' : 'gap-2.5'} px-2.5 py-2 rounded-lg text-sm font-medium transition-all {active ? 'bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:bg-white/60 dark:hover:bg-zinc-800/50 hover:text-zinc-800 dark:hover:text-zinc-200'}">
           {#if active}<span class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-amber-500"></span>{/if}
           <span class="size-7 rounded-md flex items-center justify-center shrink-0 {active ? 'bg-amber-50 dark:bg-amber-900/25' : 'group-hover:bg-zinc-100/80 dark:group-hover:bg-zinc-800/60'}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4 {active ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300'}">
               <path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
             </svg>
           </span>
-          {item.label}
+          <span class="overflow-hidden whitespace-nowrap transition-all duration-200 {compact ? 'max-w-0 opacity-0 -translate-x-1' : 'max-w-[140px] opacity-100 translate-x-0'}">{item.label}</span>
         </a>
       {/each}
     </div>
   </nav>
 
-  <div class="p-3 border-t border-zinc-200/80 dark:border-zinc-800">
+  <div class="{compact ? 'p-2' : 'p-3'} border-t border-zinc-200/80 dark:border-zinc-800">
     {#if $authStore.user}
-      <div class="flex items-center gap-2.5 p-2 rounded-lg bg-white/50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-700/50">
-        <div class="size-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0">
-          <span class="text-xs font-bold text-white">{initials}</span>
+      <div class="flex items-center {compact ? 'flex-col gap-1.5' : 'gap-2.5'} p-2 rounded-lg bg-white/50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-700/50 transition-all duration-200">
+        <div class="size-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-sm">
+          <span class="text-xs font-bold text-white leading-none">{initials}</span>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{$authStore.user.name}</p>
-          <p class="text-xs text-zinc-400 truncate">{$authStore.user.email}</p>
-        </div>
-        <button onclick={logout} aria-label="Sign out" class="size-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/80 hover:text-zinc-600 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-          </svg>
-        </button>
+        {#if !compact}
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{$authStore.user.name}</p>
+            <p class="text-xs text-zinc-400 truncate">{$authStore.user.email}</p>
+          </div>
+          <button onclick={logout} aria-label="Sign out" class="h-7 px-2 rounded-md inline-flex items-center gap-1 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-300 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-3.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+            Sign out
+          </button>
+        {:else}
+          <button onclick={logout} aria-label="Sign out" title="Sign out" class="size-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+          </button>
+        {/if}
       </div>
     {:else}
-      <button onclick={logout} class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:bg-white/60 transition-colors">
+      <button onclick={logout} title={compact ? 'Sign out' : undefined} class="w-full flex items-center {compact ? 'justify-center' : 'gap-2.5'} px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:bg-white/60 hover:text-zinc-600 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
-        Sign out
+        {#if !compact}
+          Sign out
+        {/if}
       </button>
     {/if}
   </div>
