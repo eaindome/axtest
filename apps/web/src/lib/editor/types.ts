@@ -1,5 +1,17 @@
 export type StepType = 'navigate' | 'click' | 'type' | 'select' | 'clear' | 'assert'
 
+/** Supported assertion verbs in ASSERT blocks (serialized after `assert`). */
+export type AssertionType =
+  | 'is_visible'
+  | 'is_not_visible'
+  | 'is_enabled'
+  | 'is_disabled'
+  | 'contains'
+  | 'toast_shows'
+  | 'url_contains'
+  | 'modal_open'
+  | 'custom'
+
 export type TestKind = '' | 'seed' | 'positive' | 'negative' | 'edge'
 
 /** Structured validation / behaviour rules — parallel to step verbs. */

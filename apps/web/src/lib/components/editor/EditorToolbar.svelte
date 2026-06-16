@@ -4,8 +4,8 @@
   import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
   import { darkMode } from '$lib/stores/theme'
   import { ENV_OPTIONS } from '$lib/editor/step-options'
-  import { isOverridableEnv } from '$lib/editor/resolve-env-url'
-  import type { Project, TestFile } from '$lib/api'
+  import { isOverridableEnv, envLabel } from '$lib/editor/resolve-env-url'
+  import type { Project, TestFile, EnvironmentName } from '$lib/api'
 
   interface Props {
     activeProject: Project | null
@@ -15,8 +15,9 @@
     saving: boolean
     running: boolean
     mode: 'code' | 'visual'
-    environment: string
+    environment: EnvironmentName
     effectiveUrl: string
+    environmentNeedsSetup?: boolean
     validationErrors?: number
     validationWarnings?: number
     onJumpToError?: () => void
@@ -40,6 +41,7 @@
     mode,
     environment,
     effectiveUrl,
+    environmentNeedsSetup = false,
     validationErrors = 0,
     validationWarnings = 0,
     onJumpToError,
@@ -136,17 +138,26 @@
       size="md"
       onchange={onEnvironmentChange}
     />
-    {#if effectiveUrl}
+    {#if effectiveUrl || (canEditEnv && environmentNeedsSetup)}
       <button
         type="button"
         onclick={() => canEditEnv && onEditEnvironment()}
         disabled={!canEditEnv}
-        title={canEditEnv ? 'Edit environment URL' : 'Production URL is set on the project'}
-        class="hidden lg:flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700
-               bg-white dark:bg-zinc-800 text-sm font-mono text-zinc-500 dark:text-zinc-400 truncate
-               {canEditEnv ? 'hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300' : 'opacity-80 cursor-default'}"
+        title={canEditEnv
+          ? (environmentNeedsSetup ? `Set up ${envLabel(environment)} URL` : 'Edit environment URL')
+          : 'Production URL is set on the project'}
+        class="hidden lg:flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border text-sm truncate
+               {canEditEnv && environmentNeedsSetup
+                 ? 'border-dashed border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-300 font-medium hover:border-amber-400'
+                 : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-zinc-500 dark:text-zinc-400'}
+               {canEditEnv && !environmentNeedsSetup ? 'hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300' : ''}
+               {!canEditEnv ? 'opacity-80 cursor-default' : ''}"
       >
-        {effectiveUrl}
+        {#if canEditEnv && environmentNeedsSetup}
+          Set {envLabel(environment)} URL…
+        {:else}
+          {effectiveUrl}
+        {/if}
       </button>
     {/if}
   </div>

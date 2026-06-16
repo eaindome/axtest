@@ -1,4 +1,5 @@
 import type { Diagnostic } from '@codemirror/lint'
+import { validateAssertionBody } from './parse-assertion'
 
 const KNOWN_ACTIONS = [
   'navigate to', 'click', 'type', 'select', 'clear', 'assert',
@@ -29,6 +30,7 @@ export function validateAxtest(content: string): Diagnostic[] {
   let inFrontmatter = false
   let inRulesList = false
   let inRulesSection = false
+  let section: 'steps' | 'asserts' | null = null
   let currentTest: { line: number; hasSteps: boolean; hasAssert: boolean } | null = null
 
   for (let i = 0; i < lines.length; i++) {
@@ -81,6 +83,7 @@ export function validateAxtest(content: string): Diagnostic[] {
 
     if (upper.startsWith('TEST ')) {
       inRulesSection = false
+      section = null
       if (currentTest && (!currentTest.hasSteps || !currentTest.hasAssert)) {
         const prevFrom = lines.slice(0, currentTest.line).join('\n').length + (currentTest.line > 0 ? 1 : 0)
         diagnostics.push({
@@ -104,18 +107,21 @@ export function validateAxtest(content: string): Diagnostic[] {
 
     if (trimmed === 'STEPS' && currentTest) {
       inRulesSection = false
+      section = 'steps'
       currentTest.hasSteps = true
       continue
     }
 
     if (trimmed === 'ASSERT' && currentTest) {
       inRulesSection = false
+      section = 'asserts'
       currentTest.hasAssert = true
       continue
     }
 
     if (trimmed === 'RULES') {
       inRulesSection = true
+      section = null
       currentTest = null
       continue
     }
@@ -124,6 +130,7 @@ export function validateAxtest(content: string): Diagnostic[] {
 
     if (upper.startsWith('AUTH ') || upper.startsWith('MODULE ')) {
       inRulesSection = false
+      section = null
       continue
     }
 
@@ -140,6 +147,20 @@ export function validateAxtest(content: string): Diagnostic[] {
 
     if (BLOCK_KEYWORDS.includes(upper)) continue
     if (trimmed.startsWith('title:') || trimmed.startsWith('base_url:')) continue
+
+    if (section === 'asserts') {
+      if (!trimmed.startsWith('assert ')) {
+        diagnostics.push({
+          from, to,
+          severity: 'error',
+          message: 'ASSERT lines must start with assert — e.g. assert "Success" is_visible',
+        })
+        continue
+      }
+      const issue = validateAssertionBody(trimmed.slice(7))
+      if (issue) diagnostics.push({ from, to, ...issue })
+      continue
+    }
 
     const action = lineAction(trimmed)
     if (!action) {
@@ -169,12 +190,9 @@ export function validateAxtest(content: string): Diagnostic[] {
       })
     }
 
-    if (action === 'assert' && trimmed === 'assert') {
-      diagnostics.push({
-        from, to,
-        severity: 'error',
-        message: 'Assertion cannot be empty',
-      })
+    if (action === 'assert') {
+      const issue = validateAssertionBody(trimmed.slice(7))
+      if (issue) diagnostics.push({ from, to, ...issue })
     }
   }
 

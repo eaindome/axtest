@@ -1,6 +1,7 @@
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import type { EditorView } from '@codemirror/view'
 import { ctxAtLine, TEST_BLOCK_SNIPPET } from './axtest-indent'
+import { ASSERTION_SNIPPETS } from './assertion-options'
 
 function cq(s: string) { const i = s.indexOf('""'); return i === -1 ? s.length : i + 1 }
 
@@ -53,15 +54,9 @@ const BLOCKS: Completion[] = [
   c({ label: 'DEPENDS ON', snippet: 'DEPENDS ON ""', type: 'text' }),
 ]
 
-const ASSERTIONS: Completion[] = [
-  c({ label: 'is_visible', snippet: '"" is_visible', type: 'variable' }),
-  c({ label: 'is_not_visible', snippet: '"" is_not_visible', type: 'variable' }),
-  c({ label: 'is_enabled', snippet: '"" is_enabled', type: 'variable' }),
-  c({ label: 'contains', snippet: '"" contains ""', type: 'variable' }),
-  c({ label: 'toast shows', snippet: 'toast shows ""', type: 'variable' }),
-  c({ label: 'url contains', snippet: 'url contains ""', type: 'variable' }),
-  c({ label: 'modal is open', snippet: 'modal is open', type: 'variable', cursor: 13 }),
-]
+const ASSERTIONS: Completion[] = ASSERTION_SNIPPETS.map(({ label, snippet }) =>
+  c({ label, snippet, type: 'variable' }),
+)
 
 function sectionAt(doc: { line: (n: number) => { text: string } }, lineNo: number): 'steps' | 'asserts' | null {
   const s = ctxAtLine(doc as import('@codemirror/state').Text, lineNo).section

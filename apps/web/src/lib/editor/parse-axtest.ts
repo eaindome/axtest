@@ -1,7 +1,10 @@
 import type { ParsedFile, Rule, RuleType, Step, StepType, TestBlock, TestKind } from './types'
+import { defaultAssertionBody, parseAssertion, serializeAssertion } from './parse-assertion'
 
 export function makeStep(type: StepType = 'click'): Step {
-  return { id: crypto.randomUUID(), type, target: '', value: '', context: '', assertion: '' }
+  const step: Step = { id: crypto.randomUUID(), type, target: '', value: '', context: '', assertion: '' }
+  if (type === 'assert') step.assertion = defaultAssertionBody()
+  return step
 }
 
 export function makeRule(type: RuleType = 'field_required'): Rule {
@@ -104,7 +107,10 @@ export function parseStep(line: string): Step {
     return { ...s, type: 'select', value: line.slice(7) }
   }
   if (line.startsWith('clear ')) return { ...s, type: 'clear', target: line.slice(6).replace(/^"|"$/g, '') }
-  if (line.startsWith('assert ')) return { ...s, type: 'assert', assertion: line.slice(7) }
+  if (line.startsWith('assert ')) {
+    const body = line.slice(7)
+    return { ...s, type: 'assert', assertion: body }
+  }
   return { ...s, type: 'navigate', target: line }
 }
 
@@ -180,7 +186,10 @@ export function serializeStep(s: Step): string {
     case 'type':     return `type "${s.value}" in "${s.target}"`
     case 'select':   return `select "${s.value}" in "${s.target}"`
     case 'clear':    return `clear "${s.target}"`
-    case 'assert':   return `assert ${s.assertion}`
+    case 'assert': {
+      const parsed = parseAssertion(s.assertion)
+      return `assert ${serializeAssertion(parsed)}`
+    }
   }
 }
 

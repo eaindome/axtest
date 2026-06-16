@@ -4,6 +4,14 @@
   import { STEP_META, type Step, type StepType, type TestBlock, type TestKind } from '$lib/editor/types'
   import { STEP_TYPE_OPTIONS, dependsOnOptions, reorder } from '$lib/editor/step-options'
   import { TEST_KIND_LABELS, TEST_KIND_OPTIONS, TEST_KIND_STYLES } from '$lib/editor/test-kind'
+  import type { AssertionType } from '$lib/editor/types'
+  import {
+    ASSERTION_TYPE_OPTIONS,
+    ASSERTION_META,
+    assertionNeedsTarget,
+    assertionNeedsValue,
+  } from '$lib/editor/assertion-options'
+  import { parseAssertion, serializeAssertion } from '$lib/editor/parse-assertion'
 
   interface Props {
     test: TestBlock
@@ -54,6 +62,24 @@
 
   const inputCls = 'flex-1 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md px-2.5 py-1.5 outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400/20'
   const dependsOpts = $derived(dependsOnOptions(allTests, test.id))
+
+  function updateAssertion(stepId: string, patch: Partial<{ type: AssertionType; target: string; value: string }>) {
+    const step = test.asserts.find(s => s.id === stepId)
+    if (!step) return
+    const next = { ...parseAssertion(step.assertion), ...patch }
+    onUpdateStep('asserts', stepId, { assertion: serializeAssertion(next) })
+  }
+
+  function onAssertionTypeChange(stepId: string, type: AssertionType) {
+    const step = test.asserts.find(s => s.id === stepId)
+    if (!step) return
+    const current = parseAssertion(step.assertion)
+    updateAssertion(stepId, {
+      type,
+      target: assertionNeedsTarget(type) ? current.target : '',
+      value: assertionNeedsValue(type) ? current.value : '',
+    })
+  }
 
   function onDragStart(e: DragEvent, i: number) {
     dragIndex = i
@@ -295,14 +321,71 @@
       <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Assert</p>
       <div class="space-y-1.5">
         {#each test.asserts as step, ai (step.id)}
-          <div class="flex items-center gap-2 group border-l-2 border-l-amber-500 pl-2.5 py-0.5">
+          {@const parsed = parseAssertion(step.assertion)}
+          <div class="flex items-center gap-2 group border-l-2 {ASSERTION_META[parsed.type].border} pl-2.5 py-1 rounded-r-md bg-zinc-50/40 dark:bg-zinc-800/20">
             <span class="text-xs font-mono text-zinc-300 dark:text-zinc-600 w-4 shrink-0">{ai + 1}</span>
-            <input
-              value={step.assertion}
-              oninput={(e) => onUpdateStep('asserts', step.id, { assertion: (e.target as HTMLInputElement).value })}
-              placeholder='"Success message" is_visible'
-              class="{inputCls} font-mono"
-            />
+
+            {#if parsed.type === 'custom'}
+              <Dropdown
+                value="is_visible"
+                options={ASSERTION_TYPE_OPTIONS}
+                minWidth="140px"
+                onchange={(v) => onAssertionTypeChange(step.id, v as AssertionType)}
+              />
+              <input
+                value={parsed.value}
+                oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
+                placeholder="Fix or replace with a supported assertion type"
+                class="{inputCls} font-mono"
+              />
+              <span class="text-xs text-amber-600 dark:text-amber-400 shrink-0" title="This line is not a recognized assertion pattern">Unrecognized</span>
+            {:else}
+              <Dropdown
+                value={parsed.type}
+                options={ASSERTION_TYPE_OPTIONS}
+                minWidth="140px"
+                onchange={(v) => onAssertionTypeChange(step.id, v as AssertionType)}
+              />
+
+              {#if parsed.type === 'modal_open'}
+                <span class="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">modal is open</span>
+              {:else if parsed.type === 'toast_shows'}
+                <span class="text-xs text-zinc-400 shrink-0">toast shows</span>
+                <input
+                  value={parsed.value}
+                  oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
+                  placeholder="Saved successfully"
+                  class={inputCls}
+                />
+              {:else if parsed.type === 'url_contains'}
+                <span class="text-xs text-zinc-400 shrink-0">url contains</span>
+                <input
+                  value={parsed.value}
+                  oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
+                  placeholder="/dashboard"
+                  class="{inputCls} font-mono"
+                />
+              {:else if assertionNeedsTarget(parsed.type)}
+                <input
+                  value={parsed.target}
+                  oninput={(e) => updateAssertion(step.id, { target: (e.target as HTMLInputElement).value })}
+                  placeholder="Element or label"
+                  class={inputCls}
+                />
+                {#if parsed.type === 'contains'}
+                  <span class="text-xs text-zinc-400 shrink-0">contains</span>
+                  <input
+                    value={parsed.value}
+                    oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
+                    placeholder="Expected text"
+                    class={inputCls}
+                  />
+                {:else}
+                  <span class="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{parsed.type.replace(/_/g, ' ')}</span>
+                {/if}
+              {/if}
+            {/if}
+
             <button
               type="button"
               onclick={() => onDeleteStep('asserts', step.id)}

@@ -90,6 +90,12 @@
   const envModalConfig = $derived(
     projectEnvironments.find(e => e.name === envModalEnvironment)
   )
+
+  const environmentNeedsSetup = $derived(
+    isOverridableEnv(environment) && needsEnvironmentSetup(environment, projectEnvironments)
+  )
+
+  const fileStatuses = $derived.by(() => {
     const map: Record<string, FileStatusInfo> = {}
     for (const f of files) {
       map[f.id] = {
@@ -115,6 +121,80 @@
     diagnosticJumpIndex++
   }
 
+  async function loadEnvironments(projectId: number) {
+    try {
+      projectEnvironments = await api().getEnvironments(projectId)
+    } catch {
+      projectEnvironments = []
+    }
+  }
+
+  function openEnvModal(mode: 'setup' | 'edit', env: 'staging' | 'local') {
+    envModalEnvironment = env
+    envModalMode = mode
+    envModalOpen = true
+  }
+
+  function closeEnvModal() {
+    envModalOpen = false
+    pendingRunAfterEnv = null
+  }
+
+  async function finishEnvModal(action: () => Promise<void>) {
+    await action()
+    envModalOpen = false
+    const run = pendingRunAfterEnv
+    pendingRunAfterEnv = null
+    if (run) await run()
+  }
+
+  async function withEnvironmentReady(run: () => Promise<void>) {
+    if (isOverridableEnv(environment) && needsEnvironmentSetup(environment, projectEnvironments)) {
+      openEnvModal('setup', environment)
+      pendingRunAfterEnv = run
+      return
+    }
+    await run()
+  }
+
+  function handleEnvironmentChange(env: string) {
+    environment = env as EnvironmentName
+    if (isOverridableEnv(env) && needsEnvironmentSetup(env, projectEnvironments)) {
+      openEnvModal('setup', env)
+    }
+  }
+
+  function openEditEnvironmentModal() {
+    if (!isOverridableEnv(environment)) return
+    openEnvModal(environmentNeedsSetup ? 'setup' : 'edit', environment)
+  }
+
+  async function saveEnvironmentUrl(url: string) {
+    if (!activeProject) return
+    await finishEnvModal(async () => {
+      projectEnvironments = await api().upsertEnvironment(activeProject!.id, envModalEnvironment, {
+        baseUrl: url,
+        useProductionFallback: false,
+      })
+    })
+  }
+
+  async function useProductionForEnvironment() {
+    if (!activeProject) return
+    await finishEnvModal(async () => {
+      projectEnvironments = await api().upsertEnvironment(activeProject!.id, envModalEnvironment, {
+        useProductionFallback: true,
+      })
+    })
+  }
+
+  async function deleteEnvironmentOverride() {
+    if (!activeProject) return
+    await finishEnvModal(async () => {
+      projectEnvironments = await api().deleteEnvironment(activeProject!.id, envModalEnvironment)
+    })
+  }
+
   async function loadProjects(workspaceId: number) {
     try {
       const projs = await api().getProjects(workspaceId)
@@ -137,10 +217,13 @@
     visualParsed = null
     selectedTestId = null
     testKindFilter = 'all'
+    projectEnvironments = []
+    closeEnvModal()
     try {
       const explorer = await api().getExplorer(project.id)
       files = explorer.files
       explorerFolders = explorer.folders
+      await loadEnvironments(project.id)
       if (files.length > 0) selectFile(files[0])
     } catch {}
     loadingFiles = false
@@ -188,25 +271,27 @@
 
   async function runTests() {
     if (!activeProject || !activeFile) return
-    if (dirty) await saveFile()
-    running = true
-    resultsOpen = true
-    runResult = null
-    try {
-      const result = await api().runFile(activeProject.id, {
-        fileId: activeFile.id,
-        fileName: activeFile.name,
-        content: editorContent,
-        environment,
-      })
-      runResult = result
-      const status: FileRunStatus =
-        result.failedTests === 0 ? 'passed'
-        : result.passedTests === 0 ? 'failed'
-        : 'partial'
-      fileRunStatus = { ...fileRunStatus, [activeFile.id]: status }
-    } catch {}
-    running = false
+    await withEnvironmentReady(async () => {
+      if (dirty) await saveFile()
+      running = true
+      resultsOpen = true
+      runResult = null
+      try {
+        const result = await api().runFile(activeProject!.id, {
+          fileId: activeFile!.id,
+          fileName: activeFile!.name,
+          content: editorContent,
+          environment,
+        })
+        runResult = result
+        const status: FileRunStatus =
+          result.failedTests === 0 ? 'passed'
+          : result.passedTests === 0 ? 'failed'
+          : 'partial'
+        fileRunStatus = { ...fileRunStatus, [activeFile!.id]: status }
+      } catch {}
+      running = false
+    })
   }
 
   function switchToVisual() {
@@ -240,24 +325,26 @@
 
   async function runSingleTest(testId: string) {
     if (!activeProject || !activeFile) return
-    runningTestId = testId
-    try {
-      const parsed = parseAxtest(editorContent)
-      const test = parsed.tests.find(t => t.id === testId)
-      if (!test) return
-      if (dirty) await saveFile()
-      resultsOpen = true
-      running = true
-      runResult = await api().runFile(activeProject.id, {
-        fileId: activeFile.id,
-        fileName: activeFile.name,
-        content: editorContent,
-        environment,
-        testNames: [test.name],
-      })
-    } catch {}
-    running = false
-    runningTestId = null
+    await withEnvironmentReady(async () => {
+      runningTestId = testId
+      try {
+        const parsed = parseAxtest(editorContent)
+        const test = parsed.tests.find(t => t.id === testId)
+        if (!test) return
+        if (dirty) await saveFile()
+        resultsOpen = true
+        running = true
+        runResult = await api().runFile(activeProject!.id, {
+          fileId: activeFile!.id,
+          fileName: activeFile!.name,
+          content: editorContent,
+          environment,
+          testNames: [test.name],
+        })
+      } catch {}
+      running = false
+      runningTestId = null
+    })
   }
 
   async function handleGenerateTests(testId: string) {
@@ -414,7 +501,8 @@
     {running}
     {mode}
     {environment}
-    effectiveUrl={activeProject?.baseUrl ?? ''}
+    {effectiveUrl}
+    {environmentNeedsSetup}
     validationErrors={validation.errors}
     validationWarnings={validation.warnings}
     onJumpToError={() => jumpToValidationIssue('error')}
@@ -424,8 +512,21 @@
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
-    onEnvironmentChange={(env) => (environment = env)}
-    onEditEnvironment={() => {}}
+    onEnvironmentChange={handleEnvironmentChange}
+    onEditEnvironment={openEditEnvironmentModal}
+  />
+
+  <EnvironmentSetupModal
+    open={envModalOpen}
+    environment={envModalEnvironment}
+    project={activeProject}
+    mode={envModalMode}
+    currentUrl={envModalConfig?.baseUrl}
+    useProductionFallback={envModalConfig?.useProductionFallback ?? false}
+    onSave={saveEnvironmentUrl}
+    onUseProduction={useProductionForEnvironment}
+    onDelete={envModalMode === 'edit' ? deleteEnvironmentOverride : undefined}
+    onCancel={closeEnvModal}
   />
 
   <div class="flex flex-1 overflow-hidden min-h-0">
