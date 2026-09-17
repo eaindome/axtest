@@ -43,7 +43,7 @@ export const mockProjects: Project[] = [
     id: 3,
     name: 'TaskFlow Todo',
     baseUrl: 'https://todo.taskflow.app',
-    description: 'Training todo app used in the knowledge base walkthrough',
+    description: 'Reference TaskFlow project (read-only examples) — use the tutorial sandbox to practice',
     runCount: 6,
     systemCount: 3,
     createdAt: '2025-04-04T08:30:00Z',

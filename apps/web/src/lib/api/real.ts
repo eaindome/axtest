@@ -144,3 +144,15 @@ export async function deleteEnvironment(projectId: number, name: string) {
   }
   return getEnvironments(projectId)
 }
+
+export const forkTutorialSandbox = (workspaceId: number) =>
+  request<import('./types').TutorialSandboxResponse>(
+    `/api/workspaces/${workspaceId}/tutorial-sandbox`,
+    { method: 'POST' },
+  )
+
+export const resetLessonFile = (projectId: number, data: import('./types').ResetLessonRequest) =>
+  request<import('./types').TestFile>(
+    `/api/projects/${projectId}/tutorial/reset-lesson`,
+    { method: 'POST', body: JSON.stringify(data) },
+  )

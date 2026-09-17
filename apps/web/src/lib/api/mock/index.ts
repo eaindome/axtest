@@ -6,12 +6,14 @@ import type {
   ProjectExplorer, CreateFileRequest,
   RenameFileRequest, RenameFolderRequest, MoveFileRequest, MoveFolderRequest,
   GenerateTestsRequest, GenerateTestsResponse,
+  TutorialSandboxResponse, ResetLessonRequest,
 } from '../types'
 import { mockUser, mockToken, mockWorkspaces, mockProjects, mockRuns, mockRunDetail } from './data'
 import { mockGetExplorer, mockSaveFile, mockCreateFile, mockCreateFolder, mockDeleteFile, mockRenameFile, mockMoveFile, mockDeleteFolder, mockRenameFolder, mockMoveFolder } from './files'
 import { simulateFileRun } from './run-file'
 import { mockGenerateTests } from './generate-tests'
 import { mockGetEnvironments, mockUpsertEnvironment, mockDeleteEnvironment } from './environments'
+import { forkTutorialSandboxProject, getSandboxProjects, resetLessonStarter } from './tutorial-sandbox'
 
 const delay = (ms = 350) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -37,7 +39,7 @@ export const createWorkspace = async (name: string): Promise<Workspace> => {
 
 export const getProjects = async (_workspaceId: number): Promise<Project[]> => {
   await delay()
-  return mockProjects
+  return [...mockProjects, ...getSandboxProjects()]
 }
 
 export const createProject = async (_workspaceId: number, data: CreateProjectRequest): Promise<Project> => {
@@ -131,7 +133,7 @@ export const runFile = async (_projectId: number, req: RunFileRequest): Promise<
 
 export const getEnvironments = async (projectId: number): Promise<ProjectEnvironment[]> => {
   await delay(120)
-  const project = mockProjects.find(p => p.id === projectId)
+  const project = [...mockProjects, ...getSandboxProjects()].find(p => p.id === projectId)
   if (!project) return []
   return mockGetEnvironments(project)
 }
@@ -142,7 +144,7 @@ export const upsertEnvironment = async (
   data: UpsertEnvironmentRequest,
 ): Promise<ProjectEnvironment[]> => {
   await delay(150)
-  const project = mockProjects.find(p => p.id === projectId)
+  const project = [...mockProjects, ...getSandboxProjects()].find(p => p.id === projectId)
   if (!project) return []
   return mockUpsertEnvironment(project, name, data)
 }
@@ -152,7 +154,21 @@ export const deleteEnvironment = async (
   name: 'staging' | 'local',
 ): Promise<ProjectEnvironment[]> => {
   await delay(120)
-  const project = mockProjects.find(p => p.id === projectId)
+  const project = [...mockProjects, ...getSandboxProjects()].find(p => p.id === projectId)
   if (!project) return []
   return mockDeleteEnvironment(project, name)
+}
+
+export const forkTutorialSandbox = async (_workspaceId: number): Promise<TutorialSandboxResponse> => {
+  await delay(300)
+  const project = forkTutorialSandboxProject()
+  return { project }
+}
+
+export const resetLessonFile = async (
+  projectId: number,
+  data: ResetLessonRequest,
+): Promise<TestFile> => {
+  await delay(200)
+  return resetLessonStarter(projectId, data.lessonId)
 }

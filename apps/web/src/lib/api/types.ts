@@ -144,3 +144,11 @@ export interface UpsertEnvironmentRequest {
   baseUrl?: string | null
   useProductionFallback: boolean
 }
+
+export interface TutorialSandboxResponse {
+  project: Project
+}
+
+export interface ResetLessonRequest {
+  lessonId: string
+}

@@ -6,6 +6,7 @@
   import { globalProjects } from '$lib/stores/search'
   import type { Project } from '$lib/api'
   import Logo from '$lib/components/layout/Logo.svelte'
+  import { tutorialContinueLesson } from '$lib/stores/tutorial'
 
   interface Props {
     compact?: boolean
@@ -162,6 +163,22 @@
       {/each}
     </div>
   </nav>
+
+  {#if !compact && $tutorialContinueLesson && !$page.url.searchParams.has('lesson')}
+    <div class="px-3 pb-2">
+      <a
+        href={$tutorialContinueLesson.href}
+        class="block rounded-lg border border-amber-200/80 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2.5 hover:bg-amber-100/80 dark:hover:bg-amber-950/50 transition-colors"
+      >
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+          Continue tutorial
+        </p>
+        <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200 mt-0.5 truncate">
+          Lesson {$tutorialContinueLesson.step} — {$tutorialContinueLesson.title}
+        </p>
+      </a>
+    </div>
+  {/if}
 
   <div class="{compact ? 'p-2' : 'p-3'} border-t border-zinc-200/80 dark:border-zinc-800">
     {#if $authStore.user}

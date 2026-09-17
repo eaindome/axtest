@@ -145,6 +145,8 @@ export function parseAxtest(content: string): ParsedFile {
 
   let cur: TestBlock | null = null
   let section: 'steps' | 'asserts' | 'rules' | null = null
+  let pendingRuleId: string | null = null
+  let pendingStepId: string | null = null
   while (i < lines.length) {
     const t = lines[i].trim()
     if (t.startsWith('AUTH ')) {
@@ -167,12 +169,31 @@ export function parseAxtest(content: string): ParsedFile {
     } else if (t === 'STEPS') { section = 'steps' }
     else if (t === 'ASSERT') { section = 'asserts' }
     else if (t.startsWith('DEPENDS ON ') && cur) cur.dependsOn = t.slice(11).replace(/^"|"$/g, '')
-    else if (section === 'rules' && t) {
-      result.rules.push(parseRuleLine(t))
+    else if (t.startsWith('RULE_ID ')) {
+      pendingRuleId = t.slice(8).trim()
+    } else if (section === 'rules' && t) {
+      const rule = parseRuleLine(t)
+      if (pendingRuleId) {
+        rule.id = pendingRuleId
+        pendingRuleId = null
+      }
+      result.rules.push(rule)
+    } else if (t.startsWith('STEP_ID ') && cur && (section === 'steps' || section === 'asserts')) {
+      pendingStepId = t.slice(8).trim()
     } else if (t && cur && section === 'steps') {
-      cur.steps.push(parseStep(t))
+      const step = parseStep(t)
+      if (pendingStepId) {
+        step.id = pendingStepId
+        pendingStepId = null
+      }
+      cur.steps.push(step)
     } else if (t && cur && section === 'asserts') {
-      cur.asserts.push(parseStep(t))
+      const step = parseStep(t)
+      if (pendingStepId) {
+        step.id = pendingStepId
+        pendingStepId = null
+      }
+      cur.asserts.push(step)
     }
     i++
   }
@@ -201,7 +222,10 @@ export function serializeAxtest(p: ParsedFile): string {
   if (p.auth) out.push(`AUTH ${p.auth}`, '')
   if (p.rules.length) {
     out.push('RULES')
-    for (const r of p.rules) out.push(`  ${serializeRule(r)}`)
+    for (const r of p.rules) {
+      out.push(`  RULE_ID ${r.id}`)
+      out.push(`  ${serializeRule(r)}`)
+    }
     out.push('')
   }
   for (const t of p.tests) {
@@ -211,9 +235,15 @@ export function serializeAxtest(p: ParsedFile): string {
     if (t.generatedFrom) out.push(`  GENERATED FROM "${t.generatedFrom}"`)
     if (t.dependsOn) out.push(`  DEPENDS ON "${t.dependsOn}"`)
     out.push('  STEPS')
-    for (const s of t.steps) out.push(`    ${serializeStep(s)}`)
+    for (const s of t.steps) {
+      out.push(`    STEP_ID ${s.id}`)
+      out.push(`    ${serializeStep(s)}`)
+    }
     out.push('  ASSERT')
-    for (const s of t.asserts) out.push(`    ${serializeStep(s)}`)
+    for (const s of t.asserts) {
+      out.push(`    STEP_ID ${s.id}`)
+      out.push(`    ${serializeStep(s)}`)
+    }
     out.push('')
   }
   return out.join('\n').trimEnd()

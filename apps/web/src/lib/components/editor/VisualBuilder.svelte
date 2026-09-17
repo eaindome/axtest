@@ -20,7 +20,7 @@
     testStatuses: Record<string, 'passed' | 'failed'>
     kindFilter: TestKindFilter
     onKindFilterChange: (filter: TestKindFilter) => void
-    onchange: (content: string) => void
+    onchange: (content: string, parsed: ParsedFile) => void
     onSelectTest: (testId: string) => void
     onToggleCollapse: (testId: string) => void
     onRunTest: (testId: string) => void
@@ -50,7 +50,7 @@
   })
 
   function apply(patch: ParsedFile) {
-    onchange(serializeAxtest(patch))
+    onchange(serializeAxtest(patch), patch)
   }
 
   function updateStep(testId: string, sec: 'steps' | 'asserts', stepId: string, patch: Partial<Step>) {

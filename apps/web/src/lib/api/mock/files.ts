@@ -2,9 +2,32 @@ import type { ProjectExplorer, TestFile } from '../types'
 import { mockFiles as seedFiles, mockTaskflowFiles } from './data'
 
 export const DEFAULT_FOLDERS = ['auth', 'modules'] as const
+export const SANDBOX_PROJECT_ID_MIN = 100
 
 const fileStore = new Map<number, TestFile[]>()
 const folderStore = new Map<number, string[]>()
+
+export function isSandboxProject(projectId: number): boolean {
+  return projectId >= SANDBOX_PROJECT_ID_MIN
+}
+
+export function initSandboxFileStore(projectId: number) {
+  ensureProject(projectId)
+}
+
+export function setSandboxFiles(
+  projectId: number,
+  files?: TestFile[],
+  updater?: (current: TestFile[]) => TestFile[],
+): TestFile[] {
+  ensureProject(projectId)
+  if (files) {
+    fileStore.set(projectId, files.map(f => ({ ...f })))
+  } else if (updater) {
+    fileStore.set(projectId, updater([...fileStore.get(projectId)!]))
+  }
+  return fileStore.get(projectId)!
+}
 
 function foldersFromFiles(files: TestFile[]): string[] {
   const paths = new Set<string>()
@@ -26,6 +49,7 @@ function ensureProject(projectId: number) {
       projectId,
       projectId === 1 ? [...seedFiles]
       : projectId === 3 ? [...mockTaskflowFiles]
+      : isSandboxProject(projectId) ? []
       : [],
     )
     folderStore.set(projectId, [])

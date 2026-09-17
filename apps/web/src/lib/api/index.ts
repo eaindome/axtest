@@ -15,4 +15,5 @@ export type {
   ProjectExplorer, CreateFileRequest,
   RenameFileRequest, RenameFolderRequest, MoveFileRequest, MoveFolderRequest,
   GenerateTestsRequest, GenerateTestsResponse,
+  TutorialSandboxResponse, ResetLessonRequest,
 } from './types'

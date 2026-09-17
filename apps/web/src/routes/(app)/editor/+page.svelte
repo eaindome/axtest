@@ -20,8 +20,12 @@
   import CodeEditor from '$lib/components/editor/CodeEditor.svelte'
   import VisualBuilder from '$lib/components/editor/VisualBuilder.svelte'
   import EditorOutline from '$lib/components/editor/EditorOutline.svelte'
+  import LessonCoach from '$lib/components/editor/LessonCoach.svelte'
   import ResultsPanel from '$lib/components/editor/ResultsPanel.svelte'
   import ResizeHandle from '$lib/components/editor/ResizeHandle.svelte'
+  import { isTutorialLessonId, getLessonFilePath } from '$lib/docs/tutorial-lessons'
+  import { ensureTutorialSandbox, applyLessonStarter, beginLessonPractice } from '$lib/docs/tutorial-practice'
+  import { setTutorialActiveLesson } from '$lib/stores/tutorial'
 
   const savedPanels = loadPanelSizes()
 
@@ -55,6 +59,11 @@
   let runningTestId  = $state<string | null>(null)
   let generatingTestId = $state<string | null>(null)
   let testKindFilter = $state<TestKindFilter>('all')
+  let lessonId         = $state<string | null>(null)
+  let sandboxProjectId = $state<number | null>(null)
+  let lessonBooting    = $state(false)
+  let lessonResetting  = $state(false)
+  let lessonReady      = $state(false)
 
   let resizeExplorerStart = 0
   let resizeOutlineStart = 0
@@ -65,6 +74,9 @@
     return v ? Number(v) : null
   })
   const paramFilePath = $derived(() => $page.url.searchParams.get('file'))
+  const paramLessonId = $derived(() => $page.url.searchParams.get('lesson'))
+  const paramMode = $derived(() => $page.url.searchParams.get('mode') as 'code' | 'visual' | null)
+  const inLessonMode = $derived(!!lessonId && isTutorialLessonId(lessonId))
 
   const validation = $derived(countDiagnostics(validateAxtest(editorContent)))
   const editorDiagnostics = $derived(validateAxtest(editorContent))
@@ -113,7 +125,23 @@
 
   $effect(() => {
     const ws = $currentWorkspace
-    if (ws) loadProjects(ws.id)
+    const lessonParam = paramLessonId()
+    if (!ws) return
+
+    if (lessonParam && isTutorialLessonId(lessonParam) && lessonParam !== lessonId && !lessonBooting) {
+      bootLessonPractice(lessonParam)
+      return
+    }
+
+    if (!lessonParam && lessonId) {
+      lessonId = null
+      lessonReady = false
+      sandboxProjectId = null
+    }
+
+    if (!lessonParam && !lessonBooting) {
+      loadProjects(ws.id)
+    }
   })
 
   function jumpToValidationIssue(severity: 'error' | 'warning') {
@@ -201,12 +229,56 @@
       const projs = await api().getProjects(workspaceId)
       projects = projs
       const pid = paramProjectId()
-      const target = projs.find(p => p.id === pid) ?? projs[0]
-      if (target) selectProject(target)
+      const target = pid ? projs.find(p => p.id === pid) : projs[0]
+      if (target) await selectProject(target)
     } catch {}
   }
 
-  async function selectProject(project: Project) {
+  async function bootLessonPractice(id: string) {
+    lessonBooting = true
+    lessonReady = false
+    try {
+      beginLessonPractice(id)
+      setTutorialActiveLesson(id)
+      const sandboxId = await ensureTutorialSandbox()
+      sandboxProjectId = sandboxId
+      await applyLessonStarter(sandboxId, id)
+
+      const projs = await api().getProjects($currentWorkspace!.id)
+      projects = projs
+      const sandbox = projs.find(p => p.id === sandboxId)
+      if (!sandbox) return
+
+      const filePath = paramFilePath() ?? getLessonFilePath(id)
+      const lessonMode = paramMode()
+      if (lessonMode === 'code' || lessonMode === 'visual') mode = lessonMode
+
+      await selectProject(sandbox, filePath)
+      lessonId = id
+      lessonReady = true
+    } catch {
+      lessonId = null
+    } finally {
+      lessonBooting = false
+    }
+  }
+
+  async function resetLessonFile() {
+    if (!lessonId || !sandboxProjectId) return
+    lessonResetting = true
+    try {
+      const updated = await api().resetLessonFile(sandboxProjectId, { lessonId })
+      files = files.map(f => f.id === updated.id ? updated : f)
+      if (activeFile?.id === updated.id) {
+        editorContent = updated.content
+        dirty = false
+        visualParsed = mode === 'visual' ? parseAxtest(updated.content) : visualParsed
+      }
+    } catch {}
+    lessonResetting = false
+  }
+
+  async function selectProject(project: Project, preferredFilePath?: string | null) {
     activeProject = project
     loadingFiles = true
     activeFile = null
@@ -226,7 +298,7 @@
       explorerFolders = explorer.folders
       await loadEnvironments(project.id)
       if (files.length > 0) {
-        const targetPath = paramFilePath()
+        const targetPath = preferredFilePath ?? paramFilePath()
         const fromQuery = targetPath
           ? files.find(f => f.path === targetPath || f.name === targetPath)
           : null
@@ -310,10 +382,10 @@
     mode = 'code'
   }
 
-  function onVisualChange(content: string) {
+  function onVisualChange(content: string, parsed?: ParsedFile) {
     editorContent = content
     markDirty()
-    visualParsed = parseAxtest(content)
+    if (parsed) visualParsed = parsed
   }
 
   function selectTest(testId: string) {
@@ -499,6 +571,12 @@
 
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
 
+  {#if lessonBooting}
+    <div class="flex-1 flex items-center justify-center">
+      <p class="text-sm text-zinc-500">Preparing your tutorial sandbox…</p>
+    </div>
+  {:else}
+
   <EditorToolbar
     {activeProject}
     {projects}
@@ -613,22 +691,33 @@
       />
     </div>
 
-    <ResizeHandle
-      direction="horizontal"
-      side="right"
-      onResizeStart={() => { resizeOutlineStart = outlineWidth }}
-      onResize={(delta) => { outlineWidth = clamp(resizeOutlineStart + delta, 180, 400) }}
-    />
+    {#if inLessonMode && lessonReady && lessonId && sandboxProjectId}
+      <LessonCoach
+        lessonId={lessonId}
+        fileContent={editorContent}
+        sandboxProjectId={sandboxProjectId}
+        resetting={lessonResetting}
+        onReset={resetLessonFile}
+      />
+    {:else}
+      <ResizeHandle
+        direction="horizontal"
+        side="right"
+        onResizeStart={() => { resizeOutlineStart = outlineWidth }}
+        onResize={(delta) => { outlineWidth = clamp(resizeOutlineStart + delta, 180, 400) }}
+      />
 
-    <EditorOutline
-      parsed={mode === 'visual' ? visualParsed : parseAxtest(editorContent)}
-      {runResult}
-      {running}
-      {selectedTestId}
-      kindFilter={testKindFilter}
-      onKindFilterChange={(f) => (testKindFilter = f)}
-      width={outlineWidth}
-      onSelectTest={selectTest}
-    />
+      <EditorOutline
+        parsed={mode === 'visual' ? visualParsed : parseAxtest(editorContent)}
+        {runResult}
+        {running}
+        {selectedTestId}
+        kindFilter={testKindFilter}
+        onKindFilterChange={(f) => (testKindFilter = f)}
+        width={outlineWidth}
+        onSelectTest={selectTest}
+      />
+    {/if}
   </div>
+  {/if}
 </div>

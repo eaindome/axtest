@@ -126,7 +126,7 @@ export function validateAxtest(content: string): Diagnostic[] {
       continue
     }
 
-    if (inRulesSection && RULE_LINE.test(trimmed)) continue
+    if (inRulesSection && (RULE_LINE.test(trimmed) || trimmed.startsWith('RULE_ID '))) continue
 
     if (upper.startsWith('AUTH ') || upper.startsWith('MODULE ')) {
       inRulesSection = false
@@ -143,7 +143,7 @@ export function validateAxtest(content: string): Diagnostic[] {
       continue
     }
 
-    if (trimmed.startsWith('ID ') || trimmed.startsWith('TAG ') || trimmed.startsWith('GENERATED FROM ')) continue
+    if (trimmed.startsWith('ID ') || trimmed.startsWith('TAG ') || trimmed.startsWith('GENERATED FROM ') || trimmed.startsWith('RULE_ID ') || trimmed.startsWith('STEP_ID ')) continue
 
     if (BLOCK_KEYWORDS.includes(upper)) continue
     if (trimmed.startsWith('title:') || trimmed.startsWith('base_url:')) continue
