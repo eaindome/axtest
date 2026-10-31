@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store'
+import { writable, get } from 'svelte/store'
 import { browser, dev } from '$app/environment'
 
 // Default to mock ON in dev so any credentials work without a running API
@@ -9,4 +9,26 @@ export const useMock = writable<boolean>(initial)
 
 if (browser) {
   useMock.subscribe(val => localStorage.setItem('axtest_mock', String(val)))
+}
+
+// Session and workspace identities must never cross the mock/API boundary.
+export function modeKey(key: string): string { return `${get(useMock) ? 'mock' : 'api'}:${key}` }
+export function readModeStorage(key: string): string | null {
+  if (!browser) return null
+  const scoped = modeKey(key)
+  const value = localStorage.getItem(scoped)
+  if (value !== null) return value
+  if (get(useMock)) {
+    const legacy = localStorage.getItem(key)
+    if (legacy !== null) { localStorage.setItem(scoped, legacy); localStorage.removeItem(key) }
+    return legacy
+  }
+  return null
+}
+export function switchDataMode(mock: boolean) {
+  if (!browser || mock === get(useMock)) return
+  const event = new Event('axtest:before-mode-switch', { cancelable: true })
+  if (!window.dispatchEvent(event)) return
+  useMock.set(mock)
+  window.location.assign('/dashboard')
 }

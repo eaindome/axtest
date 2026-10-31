@@ -35,6 +35,7 @@ export interface RunListItem {
   triggeredBy: string
   startedAt: string
   completedAt: string | null
+  errorMessage?: string | null
 }
 
 export interface ResultItem {
@@ -46,6 +47,9 @@ export interface ResultItem {
   errorMessage: string | null
   failedStep: string | null
   order: number
+  screenshotUrl?: string | null
+  skipReason?: string | null
+  steps?: { raw: string; status: string; durationMs: number; error?: string | null; screenshotUrl?: string | null }[]
 }
 
 export interface RunDetail extends RunListItem {
@@ -151,4 +155,9 @@ export interface TutorialSandboxResponse {
 
 export interface ResetLessonRequest {
   lessonId: string
+}
+
+export interface RunExecutionOptions {
+  signal?: AbortSignal
+  onProgress?: (run: RunDetail) => void
 }

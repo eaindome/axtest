@@ -89,7 +89,7 @@ export const runCommand = new Command('run')
         const result = await executeFile(fileContext, authContexts, moduleContexts, runOptions, axtestConfig)
         allResults.push(result)
 
-        if (result.status === 'failed') {
+        if (result.status !== 'passed') {
           hasFailures = true
           spinner.fail(chalk.red(relPath))
         } else {

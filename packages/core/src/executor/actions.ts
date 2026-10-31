@@ -7,28 +7,52 @@ import {
   ElementNotFoundError,
 } from './element-resolver.js'
 
-export async function executeAction(page: Page, action: Action, baseUrl: string): Promise<void> {
+export async function executeAction(
+  page: Page,
+  action: Action,
+  baseUrl: string,
+): Promise<void> {
   switch (action.type) {
-    case 'navigate':    return executeNavigate(page, action.path, baseUrl)
-    case 'go_back':     return page.goBack().then(() => {})
-    case 'refresh':     return page.reload().then(() => {})
-    case 'click':       return executeClick(page, action)
-    case 'click_tab':   return executeClickTab(page, action.target)
-    case 'double_click':return executeDoubleClick(page, action.target)
-    case 'type':        return executeType(page, action)
-    case 'clear':       return executeClear(page, action.target)
-    case 'select':      return executeSelect(page, action)
-    case 'check':       return executeCheck(page, action)
-    case 'uncheck':     return executeUncheck(page, action.target)
-    case 'wait':        return executeWait(page, action)
-    case 'upload':      return executeUpload(page, action)
-    case 'press':       return page.keyboard.press(action.key)
-    case 'confirm_dialog': return executeConfirmDialog(page)
-    case 'dismiss_dialog': return executeDismissDialog(page)
-    case 'scroll':      return executeScroll(page, action.target)
-    case 'hover':       return executeHover(page, action.target)
-    case 'open_action_menu': return executeOpenActionMenu(page, action)
-    case 'setup_select': return executeSetupSelect(page, action)
+    case 'navigate':
+      return executeNavigate(page, action.path, baseUrl)
+    case 'go_back':
+      return page.goBack().then(() => {})
+    case 'refresh':
+      return page.reload().then(() => {})
+    case 'click':
+      return executeClick(page, action)
+    case 'click_tab':
+      return executeClickTab(page, action.target)
+    case 'double_click':
+      return executeDoubleClick(page, action.target)
+    case 'type':
+      return executeType(page, action)
+    case 'clear':
+      return executeClear(page, action.target)
+    case 'select':
+      return executeSelect(page, action)
+    case 'check':
+      return executeCheck(page, action)
+    case 'uncheck':
+      return executeUncheck(page, action.target)
+    case 'wait':
+      return executeWait(page, action)
+    case 'upload':
+      return executeUpload(page, action)
+    case 'press':
+      return page.keyboard.press(action.key)
+    case 'confirm_dialog':
+      return executeConfirmDialog(page)
+    case 'dismiss_dialog':
+      return executeDismissDialog(page)
+    case 'scroll':
+      return executeScroll(page, action.target)
+    case 'hover':
+      return executeHover(page, action.target)
+    case 'open_action_menu':
+      return executeOpenActionMenu(page, action)
+    case 'setup_select':
+      return executeSetupSelect(page, action)
     default:
       throw new Error(`Unsupported action type: "${(action as Action).type}"`)
   }
@@ -36,12 +60,21 @@ export async function executeAction(page: Page, action: Action, baseUrl: string)
 
 // ─── Action implementations ───────────────────────────────────────────────────
 
-async function executeNavigate(page: Page, rawPath: string, baseUrl: string): Promise<void> {
-  const url = rawPath.startsWith('http') ? rawPath : `${baseUrl.replace(/\/$/, '')}${rawPath}`
-  await page.goto(url, { waitUntil: 'networkidle' })
+async function executeNavigate(
+  page: Page,
+  rawPath: string,
+  baseUrl: string,
+): Promise<void> {
+  const url = new URL(rawPath, baseUrl.replace(/\/$/, '') + '/').toString()
+  if (!['http:', 'https:'].includes(new URL(url).protocol))
+    throw new Error('Navigation must use HTTP or HTTPS.')
+  await page.goto(url, { waitUntil: 'domcontentloaded' })
 }
 
-async function executeClick(page: Page, action: Extract<Action, { type: 'click' }>): Promise<void> {
+async function executeClick(
+  page: Page,
+  action: Extract<Action, { type: 'click' }>,
+): Promise<void> {
   const el = await resolveElement(page, action.target, {
     scope: action.scope,
     context: action.context,
@@ -59,7 +92,10 @@ async function executeDoubleClick(page: Page, target: string): Promise<void> {
   await el.dblclick()
 }
 
-async function executeType(page: Page, action: Extract<Action, { type: 'type' }>): Promise<void> {
+async function executeType(
+  page: Page,
+  action: Extract<Action, { type: 'type' }>,
+): Promise<void> {
   const el = await resolveInput(page, action.target, action.position)
   await el.fill(action.value)
   if (action.pressAfter) {
@@ -72,9 +108,12 @@ async function executeClear(page: Page, target: string): Promise<void> {
   await el.clear()
 }
 
-async function executeSelect(page: Page, action: Extract<Action, { type: 'select' }>): Promise<void> {
+async function executeSelect(
+  page: Page,
+  action: Extract<Action, { type: 'select' }>,
+): Promise<void> {
   const el = await resolveSelect(page, action.target)
-  const tag = await el.evaluate(e => (e as HTMLElement).tagName.toLowerCase())
+  const tag = await el.evaluate((e) => (e as HTMLElement).tagName.toLowerCase())
 
   if (tag === 'select') {
     // Native <select>
@@ -99,14 +138,20 @@ async function executeSelect(page: Page, action: Extract<Action, { type: 'select
       await option.waitFor({ state: 'visible', timeout: 3000 })
       await option.click()
     } else {
-      const option = page.locator('[role="option"]').filter({ hasText: action.option }).first()
+      const option = page
+        .locator('[role="option"]')
+        .filter({ hasText: action.option })
+        .first()
       await option.waitFor({ state: 'visible', timeout: 3000 })
       await option.click()
     }
   }
 }
 
-async function executeCheck(page: Page, action: Extract<Action, { type: 'check' }>): Promise<void> {
+async function executeCheck(
+  page: Page,
+  action: Extract<Action, { type: 'check' }>,
+): Promise<void> {
   if (action.position === 'first') {
     // Find first unchecked checkbox in the list context
     const checkboxes = page.getByRole('checkbox')
@@ -130,7 +175,10 @@ async function executeUncheck(page: Page, target: string): Promise<void> {
   await el.uncheck()
 }
 
-async function executeWait(page: Page, action: Extract<Action, { type: 'wait' }>): Promise<void> {
+async function executeWait(
+  page: Page,
+  action: Extract<Action, { type: 'wait' }>,
+): Promise<void> {
   if (action.condition === 'page_load') {
     await page.waitForLoadState('networkidle')
     return
@@ -145,7 +193,10 @@ async function executeWait(page: Page, action: Extract<Action, { type: 'wait' }>
   }
 }
 
-async function executeUpload(page: Page, action: Extract<Action, { type: 'upload' }>): Promise<void> {
+async function executeUpload(
+  page: Page,
+  action: Extract<Action, { type: 'upload' }>,
+): Promise<void> {
   if (action.target) {
     const el = await resolveElement(page, action.target)
     await el.setInputFiles(action.file)
@@ -158,13 +209,13 @@ async function executeUpload(page: Page, action: Extract<Action, { type: 'upload
 
 async function executeConfirmDialog(page: Page): Promise<void> {
   // Handle native browser dialogs
-  page.once('dialog', d => d.accept())
+  page.once('dialog', (d) => d.accept())
 
   // Also try clicking confirm buttons in custom modal dialogs
   const confirmButtons = ['Yes', 'Confirm', 'OK', 'Proceed', 'Accept']
   for (const label of confirmButtons) {
     const btn = page.getByRole('button', { name: label })
-    if (await btn.count() > 0) {
+    if ((await btn.count()) > 0) {
       await btn.first().click()
       return
     }
@@ -172,11 +223,11 @@ async function executeConfirmDialog(page: Page): Promise<void> {
 }
 
 async function executeDismissDialog(page: Page): Promise<void> {
-  page.once('dialog', d => d.dismiss())
+  page.once('dialog', (d) => d.dismiss())
   const cancelButtons = ['Cancel', 'No', 'Dismiss', 'Close']
   for (const label of cancelButtons) {
     const btn = page.getByRole('button', { name: label })
-    if (await btn.count() > 0) {
+    if ((await btn.count()) > 0) {
       await btn.first().click()
       return
     }
@@ -203,7 +254,10 @@ async function executeOpenActionMenu(
     const menuBtn = row.getByRole('button').last() // kebab is usually last
     await menuBtn.click()
   } else if (action.context) {
-    const row = page.locator('tr, [role="row"]').filter({ hasText: action.context }).first()
+    const row = page
+      .locator('tr, [role="row"]')
+      .filter({ hasText: action.context })
+      .first()
     const menuBtn = row.getByRole('button').last()
     await menuBtn.click()
   }
@@ -218,10 +272,13 @@ async function executeSetupSelect(
   if (action.status) {
     // Find the first item in a list/table matching the given status
     const statusEl = page.getByText(action.status, { exact: true }).first()
-    if (await statusEl.count() > 0) {
+    if ((await statusEl.count()) > 0) {
       // Click the row/card containing this status
-      const row = page.locator('tr, [role="row"], [data-card]').filter({ has: statusEl }).first()
-      if (await row.count() > 0) {
+      const row = page
+        .locator('tr, [role="row"], [data-card]')
+        .filter({ has: statusEl })
+        .first()
+      if ((await row.count()) > 0) {
         await row.click()
         return
       }
@@ -230,7 +287,7 @@ async function executeSetupSelect(
   } else {
     // Just click the first available item
     const firstItem = page.getByRole('row').nth(1)
-    if (await firstItem.count() > 0) {
+    if ((await firstItem.count()) > 0) {
       await firstItem.click()
     }
   }

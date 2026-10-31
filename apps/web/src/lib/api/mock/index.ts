@@ -127,8 +127,11 @@ export const generateTests = async (_projectId: number, data: GenerateTestsReque
   return mockGenerateTests(data)
 }
 
-export const runFile = async (_projectId: number, req: RunFileRequest): Promise<RunDetail> => {
-  return simulateFileRun(req.fileName, req.content, req.environment, 'ekow@ssmas.com', req.testNames)
+export const runFile = async (_projectId: number, req: RunFileRequest, options: import('../types').RunExecutionOptions = {}): Promise<RunDetail> => {
+  const result = await simulateFileRun(req.fileName, req.content, req.environment, 'ekow@ssmas.com', req.testNames)
+  options.signal?.throwIfAborted()
+  options.onProgress?.(result)
+  return result
 }
 
 export const getEnvironments = async (projectId: number): Promise<ProjectEnvironment[]> => {

@@ -5,11 +5,16 @@ export type SearchContext = Page | Locator
 
 // Scope selectors — reasonable defaults for common UI patterns
 const SCOPE_SELECTORS: Record<ScopeType, string[]> = {
-  sidebar:    ['nav', 'aside', '[role="navigation"]', '[data-sidebar]'],
-  actionBar:  ['[role="toolbar"]', '[data-action-bar]', '.action-bar'],
-  modal:      ['[role="dialog"]', '[data-modal]'],
-  row:        ['tr', '[role="row"]'],
-  breadcrumb: ['[aria-label*="breadcrumb" i]', '[role="navigation"][aria-label*="breadcrumb" i]', 'nav ol', 'nav ul'],
+  sidebar: ['nav', 'aside', '[role="navigation"]', '[data-sidebar]'],
+  actionBar: ['[role="toolbar"]', '[data-action-bar]', '.action-bar'],
+  modal: ['[role="dialog"]', '[data-modal]'],
+  row: ['tr', '[role="row"]'],
+  breadcrumb: [
+    '[aria-label*="breadcrumb" i]',
+    '[role="navigation"][aria-label*="breadcrumb" i]',
+    'nav ol',
+    'nav ul',
+  ],
 }
 
 export async function getScopedContext(
@@ -22,8 +27,8 @@ export async function getScopedContext(
   if (scope === 'row' && context) {
     // Find the row containing the context text
     const row = page.locator('tr, [role="row"]').filter({ hasText: context })
-    if (await row.count() > 0) return row.first()
-    return page
+    if ((await row.count()) > 0) return row.first()
+    throw new ElementNotFoundError(context, ' in row scope')
   }
 
   // For modal scope: find the currently VISIBLE dialog, not just the first in DOM.
@@ -35,18 +40,30 @@ export async function getScopedContext(
       const d = dialogs.nth(i)
       if (await d.isVisible()) return d
     }
-    return page
+    throw new ElementNotFoundError('visible dialog', ' in modal scope')
   }
 
   const selectors = SCOPE_SELECTORS[scope as ScopeType]
-  if (!selectors) return page
+  if (!selectors) {
+    for (const role of [
+      'region',
+      'group',
+      'dialog',
+      'table',
+      'tabpanel',
+    ] as const) {
+      const locator = page.getByRole(role, { name: scope, exact: true })
+      if (await locator.count()) return locator.first()
+    }
+    throw new ElementNotFoundError(scope, ' (named scope)')
+  }
 
   for (const sel of selectors) {
     const el = page.locator(sel)
-    if (await el.count() > 0) return el.first()
+    if ((await el.count()) > 0) return el.first()
   }
 
-  return page
+  throw new ElementNotFoundError(scope, ' (scope)')
 }
 
 export async function resolveElement(
@@ -66,9 +83,7 @@ export async function resolveElement(
   const strategies: Array<() => Locator> = []
 
   if (kind === 'tab') {
-    strategies.push(
-      () => (ctx as Page).getByRole('tab', { name: label }),
-    )
+    strategies.push(() => (ctx as Page).getByRole('tab', { name: label }))
   } else if (kind === 'checkbox') {
     strategies.push(
       () => (ctx as Page).getByRole('checkbox', { name: label }),
@@ -113,7 +128,11 @@ export async function resolveElement(
   throw new ElementNotFoundError(label, scopeInfo + contextInfo)
 }
 
-export async function resolveInput(page: Page, label: string, position?: 'first'): Promise<Locator> {
+export async function resolveInput(
+  page: Page,
+  label: string,
+  position?: 'first',
+): Promise<Locator> {
   const strategies = [
     () => page.getByLabel(label, { exact: true }),
     () => page.getByLabel(label),
@@ -138,11 +157,17 @@ export async function resolveInput(page: Page, label: string, position?: 'first'
   throw new ElementNotFoundError(label, ' (input)')
 }
 
-export async function resolveSelect(page: Page, label: string): Promise<Locator> {
+export async function resolveSelect(
+  page: Page,
+  label: string,
+): Promise<Locator> {
   const strategies = [
     () => page.getByRole('combobox', { name: label }),
     () => page.getByLabel(label),
-    () => page.locator('select').filter({ has: page.locator(`option:scope ~ label:text("${label}")`) }),
+    () =>
+      page
+        .locator('select')
+        .filter({ has: page.locator(`option:scope ~ label:text("${label}")`) }),
   ]
 
   for (const strategy of strategies) {
@@ -162,9 +187,9 @@ export class ElementNotFoundError extends Error {
   constructor(label: string, context = '') {
     super(
       `Could not find element "${label}"${context}\n` +
-      `  Tried: visible text, aria-label, label, placeholder, title\n` +
-      `  Hint:  Check that the label matches exactly what is visible on screen.\n` +
-      `         If the element uses only an icon, add an aria-label to it.`,
+        `  Tried: visible text, aria-label, label, placeholder, title\n` +
+        `  Hint:  Check that the label matches exactly what is visible on screen.\n` +
+        `         If the element uses only an icon, add an aria-label to it.`,
     )
     this.name = 'ElementNotFoundError'
   }

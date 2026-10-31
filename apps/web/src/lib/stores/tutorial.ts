@@ -1,3 +1,4 @@
+import { modeKey } from './dev'
 import { browser } from '$app/environment'
 import { derived, writable, get } from 'svelte/store'
 import {
@@ -8,10 +9,10 @@ import {
 import { TUTORIAL_SECTIONS, type DocSection } from '$lib/docs/content'
 
 const KEYS = {
-  sandboxProjectId: 'axtest_tutorial_sandbox_id',
-  activeLesson: 'axtest_tutorial_active_lesson',
-  completed: 'axtest_tutorial_completed',
-  docsSection: 'docs_active_section',
+  sandboxProjectId: modeKey('axtest_tutorial_sandbox_id'),
+  activeLesson: modeKey('axtest_tutorial_active_lesson'),
+  completed: modeKey('axtest_tutorial_completed'),
+  docsSection: modeKey('docs_active_section'),
 } as const
 
 function readJson<T>(key: string, fallback: T): T {

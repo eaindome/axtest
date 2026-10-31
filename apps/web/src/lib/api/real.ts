@@ -8,23 +8,46 @@ import type {
   GenerateTestsRequest, GenerateTestsResponse,
 } from './types'
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000'
+import { readModeStorage } from '$lib/stores/dev'
 
+export const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:5000').replace(/\/$/, '')
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); this.name = 'ApiError' }
+}
+async function responseError(res: Response): Promise<never> {
+  const body = await res.text()
+  let message = body || `Request failed (${res.status}).`
+  try {
+    const problem = JSON.parse(body)
+    const fields = Object.values(problem.errors ?? {}).flat().filter(v => typeof v === 'string')
+    message = fields.length ? fields.join(' ') : problem.detail ?? problem.title ?? problem.error ?? (typeof problem === 'string' ? problem : message)
+  } catch { /* An older API may return plain text. */ }
+  throw new ApiError(message, res.status)
+}
+function authHeaders(): Record<string, string> {
+  const token = readModeStorage('axtest_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('axtest_token') : null
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers
-    }
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new Error(text || `HTTP ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers } })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new Error('Cannot reach the API. Start the backend and check VITE_API_URL, then try again.')
   }
+  if (!res.ok) return responseError(res)
+  if (res.status === 204) return undefined as T
   return res.json()
+}
+export const developmentSession = () => request<AuthResponse>('/api/dev/session')
+export async function screenshotBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const url = new URL(path, API_BASE)
+  if (url.origin !== new URL(API_BASE).origin || !/^\/api\/projects\/\d+\/runs\/\d+\/artifacts\//.test(url.pathname)) throw new Error('Invalid screenshot URL.')
+  const response = await fetch(url, { headers: authHeaders(), signal })
+  if (!response.ok) return responseError(response)
+  return response.blob()
 }
 
 export const login = (data: LoginRequest) =>
@@ -117,11 +140,23 @@ export const generateTests = (projectId: number, data: GenerateTestsRequest) =>
     body: JSON.stringify(data)
   })
 
-export const runFile = (projectId: number, data: RunFileRequest) =>
-  request<RunDetail>(`/api/projects/${projectId}/runs/file`, {
-    method: 'POST',
-    body: JSON.stringify(data)
-  })
+export async function runFile(projectId: number, data: RunFileRequest, options: import('./types').RunExecutionOptions = {}): Promise<RunDetail> {
+  let run = await request<RunDetail>(`/api/projects/${projectId}/runs/file?wait=false`, { method: 'POST', body: JSON.stringify(data), signal: options.signal })
+  options.onProgress?.(run)
+  const deadline = Date.now() + 15 * 60 * 1000
+  while (run.status === 'pending' || run.status === 'running') {
+    if (Date.now() > deadline) throw new Error(`Run ${run.id} is still in progress. Open project run history to follow it.`)
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); reject(new DOMException('Polling stopped', 'AbortError')) }
+      const timer = setTimeout(() => { options.signal?.removeEventListener('abort', abort); resolve() }, 1000)
+      if (options.signal?.aborted) abort()
+      else options.signal?.addEventListener('abort', abort, { once: true })
+    })
+    run = await request<RunDetail>(`/api/projects/${projectId}/runs/${run.id}`, { signal: options.signal })
+    options.onProgress?.(run)
+  }
+  return run
+}
 
 export const getEnvironments = (projectId: number) =>
   request<ProjectEnvironment[]>(`/api/projects/${projectId}/environments`)
@@ -133,15 +168,7 @@ export const upsertEnvironment = (projectId: number, name: string, data: UpsertE
   })
 
 export async function deleteEnvironment(projectId: number, name: string) {
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('axtest_token') : null
-  const res = await fetch(`${BASE}/api/projects/${projectId}/environments/${name}`, {
-    method: 'DELETE',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new Error(text || `HTTP ${res.status}`)
-  }
+  await request<void>(`/api/projects/${projectId}/environments/${name}`, { method: 'DELETE' })
   return getEnvironments(projectId)
 }
 

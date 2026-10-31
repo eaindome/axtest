@@ -1,6 +1,8 @@
 // ─── AST ─────────────────────────────────────────────────────────────────────
 
 export type FileContext = {
+  baseUrl?: string
+  isFlow?: boolean
   filePath: string
   auth?: string
   module?: string
@@ -47,26 +49,75 @@ export type Action =
   | HoverAction
   | SetupSelectAction
 
-export type ClickAction = { type: 'click'; target: string; scope?: ScopeType; context?: string; raw: string }
+export type ClickAction = {
+  type: 'click'
+  target: string
+  scope?: ScopeType | string
+  context?: string
+  raw: string
+}
 export type ClickTabAction = { type: 'click_tab'; target: string; raw: string }
-export type DoubleClickAction = { type: 'double_click'; target: string; raw: string }
-export type TypeAction = { type: 'type'; value: string; target: string; position?: 'first'; pressAfter?: string; raw: string }
+export type DoubleClickAction = {
+  type: 'double_click'
+  target: string
+  raw: string
+}
+export type TypeAction = {
+  type: 'type'
+  value: string
+  target: string
+  position?: 'first'
+  pressAfter?: string
+  raw: string
+}
 export type ClearAction = { type: 'clear'; target: string; raw: string }
-export type SelectAction = { type: 'select'; option: string; target: string; raw: string }
-export type CheckAction = { type: 'check'; target: string; position?: 'first'; raw: string }
+export type SelectAction = {
+  type: 'select'
+  option: string
+  target: string
+  raw: string
+}
+export type CheckAction = {
+  type: 'check'
+  target: string
+  position?: 'first'
+  raw: string
+}
 export type UncheckAction = { type: 'uncheck'; target: string; raw: string }
 export type NavigateAction = { type: 'navigate'; path: string; raw: string }
 export type GoBackAction = { type: 'go_back'; raw: string }
 export type RefreshAction = { type: 'refresh'; raw: string }
-export type WaitAction = { type: 'wait'; target?: string; condition: 'appear' | 'disappear' | 'page_load'; raw: string }
-export type UploadAction = { type: 'upload'; file: string; target: string | null; raw: string }
+export type WaitAction = {
+  type: 'wait'
+  target?: string
+  condition: 'appear' | 'disappear' | 'page_load'
+  raw: string
+}
+export type UploadAction = {
+  type: 'upload'
+  file: string
+  target: string | null
+  raw: string
+}
 export type PressAction = { type: 'press'; key: string; raw: string }
 export type ConfirmDialogAction = { type: 'confirm_dialog'; raw: string }
 export type DismissDialogAction = { type: 'dismiss_dialog'; raw: string }
-export type OpenActionMenuAction = { type: 'open_action_menu'; context?: string; scope?: 'first_row'; table?: string; raw: string }
+export type OpenActionMenuAction = {
+  type: 'open_action_menu'
+  context?: string
+  scope?: 'first_row'
+  table?: string
+  raw: string
+}
 export type ScrollAction = { type: 'scroll'; target: string; raw: string }
 export type HoverAction = { type: 'hover'; target: string; raw: string }
-export type SetupSelectAction = { type: 'setup_select'; entityType: string; status?: string; from: string; raw: string }
+export type SetupSelectAction = {
+  type: 'setup_select'
+  entityType: string
+  status?: string
+  from: string
+  raw: string
+}
 
 // ─── Assertions ──────────────────────────────────────────────────────────────
 
@@ -162,6 +213,8 @@ export type RunOptions = {
   bail?: boolean
   headed?: boolean
   baseUrl?: string
+  signal?: AbortSignal
+  artifactDirectory?: string
 }
 
 export type StepResult = {
@@ -197,6 +250,7 @@ export type RunResult = {
 export type AxtestConfig = {
   baseUrl: string
   browser: 'chromium' | 'firefox' | 'webkit'
+  browserExecutablePath?: string
   timeout: number
   screenshots: 'always' | 'on-failure' | 'never'
 }
