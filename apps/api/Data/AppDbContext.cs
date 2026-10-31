@@ -5,6 +5,7 @@ namespace Axtest.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
@@ -18,6 +19,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<Project>().HasIndex(p => p.WorkspaceId).IsUnique().HasFilter("\"IsTutorialSandbox\" = true").HasDatabaseName("IX_Projects_Workspace_TutorialSandbox");
+        model.Entity<TestRun>().HasIndex(r => new { r.Status, r.Id });
+        model.Entity<ProjectFile>(e =>
+        {
+            e.HasIndex(f => new { f.ProjectId, f.Path }).IsUnique();
+            e.Property(f => f.Path).HasMaxLength(512);
+            e.HasOne(f => f.Project).WithMany().HasForeignKey(f => f.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         model.Entity<User>(e =>
         {
             e.HasIndex(u => u.Email).IsUnique();
