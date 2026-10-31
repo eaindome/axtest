@@ -9,8 +9,8 @@ public record ProjectDto(
     string Name,
     string? BaseUrl,
     string? Description,
-    int TotalRuns,
-    int TotalSystems,
+    int RunCount,
+    int SystemCount,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

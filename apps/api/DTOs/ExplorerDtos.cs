@@ -1,0 +1,13 @@
+namespace Axtest.Api.DTOs;
+public record FileDto(Guid Id, string Name, string Path, string Content, DateTime UpdatedAt);
+public record ExplorerDto(List<FileDto> Files, List<string> Folders);
+public record CreateFileRequest(string Name, string? Folder);
+public record SaveFileRequest(string Content);
+public record FolderRequest(string Path);
+public record RenameRequest(string Name);
+public record MoveFileRequest(string? Folder);
+public record MoveFolderRequest(string Path, string? TargetFolder);
+public record RenameFolderRequest(string Path, string Name);
+public record GenerateRequest(Guid FileId, string Content, string SeedTestId);
+public record RunFileRequest(Guid FileId, string? FileName, string Content, string Environment, string[]? TestNames);
+public record ResetLessonRequest(string LessonId);

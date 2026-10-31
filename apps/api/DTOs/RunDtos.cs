@@ -34,7 +34,8 @@ public record RunListDto(
     string? SuiteName,
     string? TriggeredBy,
     DateTime StartedAt,
-    DateTime? CompletedAt
+    DateTime? CompletedAt,
+    string? ErrorMessage = null
 );
 
 public record RunDetailDto(
@@ -49,7 +50,8 @@ public record RunDetailDto(
     string? TriggeredBy,
     DateTime StartedAt,
     DateTime? CompletedAt,
-    List<ResultDto> Results
+    List<ResultDto> Results,
+    string? ErrorMessage = null
 );
 
 public record ResultDto(
@@ -60,5 +62,10 @@ public record ResultDto(
     int DurationMs,
     string? ErrorMessage,
     string? FailedStep,
-    int Order
+    int Order,
+    string? ScreenshotUrl = null,
+    List<StepDto>? Steps = null,
+    string? SkipReason = null
 );
+
+public record StepDto(string Raw, string Status, int DurationMs, string? Error, string? ScreenshotUrl);

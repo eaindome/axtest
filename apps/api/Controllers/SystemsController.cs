@@ -18,7 +18,7 @@ public class SystemsController(AppDbContext db) : ControllerBase
     private async Task<bool> CanAccessProject(long projectId) =>
         await db.Projects
             .Where(p => p.Id == projectId)
-            .AnyAsync(p => p.Workspace.Members.Any(m => m.UserId == UserId));
+            .AnyAsync(p => p.Workspace.Members.Any(m => m.UserId == UserId && (HttpMethods.IsGet(Request.Method) || m.Role != WorkspaceRole.Viewer)));
 
     [HttpGet]
     public async Task<ActionResult<List<SystemListDto>>> List(long projectId)
