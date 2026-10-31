@@ -21,7 +21,7 @@
   })
   async function load(workspaceId: number) {
     const id = ++requestId
-    loading = true; error = ''
+    loading = true; error = ''; projects = []; runs = []
     try {
       const list = await api().getProjects(workspaceId)
       const results = await Promise.allSettled(list.map(async p => (await api().getRuns(p.id)).map(r => ({ ...r, projectId: p.id, projectName: p.name }))))

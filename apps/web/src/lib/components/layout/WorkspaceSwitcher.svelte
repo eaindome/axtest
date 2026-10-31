@@ -1,5 +1,6 @@
 <script lang="ts">
   import { workspaces, currentWorkspace, setWorkspace } from '$lib/stores/workspace'
+  import { globalProjects } from '$lib/stores/search'
   import { api } from '$lib/api'
   import type { Workspace } from '$lib/api'
 
@@ -7,8 +8,11 @@
   let showNewForm  = $state(false)
   let newWsName    = $state('')
   let creatingWs   = $state(false)
+  let error = $state('')
 
   function switchTo(ws: Workspace) {
+    if (!window.dispatchEvent(new Event('axtest:before-workspace-switch', { cancelable: true }))) return
+    globalProjects.set([])
     setWorkspace(ws)
     showMenu = false
     showNewForm = false
@@ -23,12 +27,13 @@
       switchTo(ws)
       newWsName = ''
       showNewForm = false
-    } catch {}
+    } catch (err) { error = err instanceof Error ? err.message : 'Could not create workspace.' }
     creatingWs = false
   }
 </script>
 
 <div class="relative">
+  {#if error}<p role="alert" class="error-banner absolute top-full mt-2 z-50 w-72">{error}</p>{/if}
   <button
     onclick={() => { showMenu = !showMenu; showNewForm = false }}
     class="flex items-center gap-2 px-2.5 py-1.5 rounded-md

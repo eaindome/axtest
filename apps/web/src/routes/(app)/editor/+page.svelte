@@ -31,7 +31,6 @@
   const savedPanels = loadPanelSizes()
 
   let runController: AbortController | undefined
-  const parsedContent = $derived(parseAxtest(editorContent))
   onDestroy(() => runController?.abort())
   beforeNavigate(({ cancel }) => { if (dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
 
@@ -41,6 +40,7 @@
   let explorerFolders = $state<string[]>([])
   let activeFile     = $state<TestFile | null>(null)
   let editorContent  = $state('')
+  const parsedContent = $derived(parseAxtest(editorContent))
   let dirty          = $state(false)
   let dirtyFileIds   = $state<Set<string>>(new Set())
   let fileRunStatus  = $state<Record<string, FileRunStatus>>({})
@@ -231,14 +231,20 @@
     })
   }
 
+  let projectLoadVersion = 0
   async function loadProjects(workspaceId: number) {
+    const version = ++projectLoadVersion
+    loadingFiles = true
     try {
       const projs = await api().getProjects(workspaceId)
+      if (version !== projectLoadVersion) return
       projects = projs
       const pid = paramProjectId()
       const target = pid ? projs.find(p => p.id === pid) : projs[0]
       if (target) await selectProject(target)
+      else { activeProject = null; activeFile = null; files = []; explorerFolders = []; editorContent = ''; dirty = false }
     } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    finally { if (version === projectLoadVersion) loadingFiles = false }
   }
 
   async function bootLessonPractice(id: string) {
@@ -586,11 +592,12 @@
 
   onMount(() => {
     function beforeModeSwitch(event: Event) {
-      if (saving) { feedback = 'Wait for the file to finish saving before switching modes.'; event.preventDefault(); return }
-      if (dirty && !window.confirm('Switch data mode and discard unsaved changes?')) { event.preventDefault(); return }
+      if (saving || running) { feedback = 'Wait for the current save or run to finish before switching context.'; event.preventDefault(); return }
+      if (dirty && !window.confirm('Switch context and discard unsaved changes?')) { event.preventDefault(); return }
       dirty = false
     }
     window.addEventListener('axtest:before-mode-switch', beforeModeSwitch)
+    window.addEventListener('axtest:before-workspace-switch', beforeModeSwitch)
     function handleKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
@@ -598,7 +605,7 @@
       }
     }
     window.addEventListener('keydown', handleKey)
-    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('axtest:before-mode-switch', beforeModeSwitch) }
+    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('axtest:before-mode-switch', beforeModeSwitch); window.removeEventListener('axtest:before-workspace-switch', beforeModeSwitch) }
   })
 </script>
 
@@ -689,8 +696,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
             </div>
-            <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">Select a spec file to edit</p>
-            <p class="text-xs text-zinc-400 mt-1">Choose from the explorer or create a new file</p>
+            <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">{activeProject ? 'Select a spec file to edit' : 'Create a project to start testing'}</p>
+            <p class="text-xs text-zinc-400 mt-1">{activeProject ? 'Choose from the explorer or create a new file' : 'Projects keep your application’s tests and environments together.'}</p>
+            {#if !activeProject}<a href="/projects" class="action-link primary mt-5">Open projects</a>{/if}
           </div>
         </div>
 

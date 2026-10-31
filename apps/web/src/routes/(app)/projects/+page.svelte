@@ -37,6 +37,7 @@
 
   async function load(workspaceId: number) {
     loading = true
+    projects = []
     loadError = ''
     try {
       projects = await api().getProjects(workspaceId)
