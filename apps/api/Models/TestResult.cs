@@ -13,6 +13,8 @@ public class TestResult
     public string? ErrorMessage { get; set; }
     public string? FailedStep { get; set; }
     public string? ScreenshotPath { get; set; }
+    public string StepsJson { get; set; } = "[]";
+    public string? SkipReason { get; set; }
     public int Order { get; set; }
 
     public TestRun Run { get; set; } = null!;

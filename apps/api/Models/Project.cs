@@ -4,6 +4,7 @@ public class Project
 {
     public long Id { get; set; }
     public long WorkspaceId { get; set; }
+    public bool IsTutorialSandbox { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? BaseUrl { get; set; }
     public string? Description { get; set; }

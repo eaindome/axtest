@@ -5,6 +5,10 @@ public enum RunStatus { Pending, Running, Passed, Failed }
 public class TestRun
 {
     public long Id { get; set; }
+    public string? FileName { get; set; }
+    public Guid? FileId { get; set; }
+    public string? InputJson { get; set; }
+    public string? ErrorMessage { get; set; }
     public long ProjectId { get; set; }
     public long? TestSuiteId { get; set; }
     public RunStatus Status { get; set; } = RunStatus.Pending;
