@@ -18,7 +18,7 @@ public class ModulesController(AppDbContext db) : ControllerBase
     private async Task<bool> CanAccessSystem(long systemId) =>
         await db.Systems
             .Where(s => s.Id == systemId)
-            .AnyAsync(s => s.Project.Workspace.Members.Any(m => m.UserId == UserId));
+            .AnyAsync(s => s.Project.Workspace.Members.Any(m => m.UserId == UserId && (HttpMethods.IsGet(Request.Method) || m.Role != WorkspaceRole.Viewer)));
 
     [HttpGet]
     public async Task<ActionResult<List<ModuleListDto>>> List(long systemId)

@@ -20,7 +20,7 @@ public class EnvironmentsController(AppDbContext db) : ControllerBase
     private async Task<Project?> GetProjectIfMember(long projectId) =>
         await db.Projects
             .Include(p => p.Workspace)
-            .Where(p => p.Id == projectId && p.Workspace.Members.Any(m => m.UserId == UserId))
+            .Where(p => p.Id == projectId && p.Workspace.Members.Any(m => m.UserId == UserId && (HttpMethods.IsGet(Request.Method) || m.Role != WorkspaceRole.Viewer)))
             .FirstOrDefaultAsync();
 
     [HttpGet]
@@ -48,6 +48,8 @@ public class EnvironmentsController(AppDbContext db) : ControllerBase
         if (!req.UseProductionFallback && string.IsNullOrWhiteSpace(req.BaseUrl))
             return BadRequest("Provide a base URL or set UseProductionFallback to true.");
 
+        if (!req.UseProductionFallback && (!Uri.TryCreate(req.BaseUrl, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https")))
+            return BadRequest("Environment URL must use HTTP or HTTPS.");
         var env = await db.ProjectEnvironments
             .FirstOrDefaultAsync(e => e.ProjectId == projectId && e.Name == name);
 

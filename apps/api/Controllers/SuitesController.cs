@@ -18,7 +18,7 @@ public class SuitesController(AppDbContext db) : ControllerBase
     private async Task<bool> CanAccessModule(long moduleId) =>
         await db.Modules
             .Where(m => m.Id == moduleId)
-            .AnyAsync(m => m.System.Project.Workspace.Members.Any(wm => wm.UserId == UserId));
+            .AnyAsync(m => m.System.Project.Workspace.Members.Any(wm => wm.UserId == UserId && (HttpMethods.IsGet(Request.Method) || wm.Role != WorkspaceRole.Viewer)));
 
     [HttpGet]
     public async Task<ActionResult<List<SuiteListDto>>> List(long moduleId)

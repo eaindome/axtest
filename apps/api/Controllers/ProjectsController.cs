@@ -11,12 +11,12 @@ namespace Axtest.Api.Controllers;
 [ApiController]
 [Route("api/workspaces/{workspaceId:long}/projects")]
 [Authorize]
-public class ProjectsController(AppDbContext db) : ControllerBase
+public class ProjectsController(AppDbContext db, Axtest.Api.Services.ExplorerService explorer, Axtest.Api.Services.RunnerProcess runner) : ControllerBase
 {
     private long UserId => long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     private async Task<bool> IsMember(long workspaceId) =>
-        await db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId);
+        await db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspaceId && m.UserId == UserId && (HttpMethods.IsGet(Request.Method) || m.Role != WorkspaceRole.Viewer));
 
     [HttpGet]
     public async Task<ActionResult<List<ProjectDto>>> List(long workspaceId)
@@ -40,6 +40,8 @@ public class ProjectsController(AppDbContext db) : ControllerBase
     {
         if (!await IsMember(workspaceId)) return NotFound();
 
+        if (string.IsNullOrWhiteSpace(req.Name)) return BadRequest("Project name is required.");
+        if (!string.IsNullOrWhiteSpace(req.BaseUrl) && (!Uri.TryCreate(req.BaseUrl, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https"))) return BadRequest("Project URL must use HTTP or HTTPS.");
         var project = new Project
         {
             WorkspaceId = workspaceId,
@@ -48,9 +50,14 @@ public class ProjectsController(AppDbContext db) : ControllerBase
             Description = req.Description?.Trim(),
         };
 
+        await using var transaction = await db.Database.BeginTransactionAsync();
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
+        await explorer.EnsureFolders(project.Id, "auth");
+        await explorer.EnsureFolders(project.Id, "modules");
+        await explorer.Save(project.Id);
+        await transaction.CommitAsync();
         return CreatedAtAction(nameof(Get), new { workspaceId, id = project.Id },
             new ProjectDto(project.Id, project.Name, project.BaseUrl, project.Description, 0, 0, project.CreatedAt, project.UpdatedAt));
     }
@@ -82,6 +89,8 @@ public class ProjectsController(AppDbContext db) : ControllerBase
             .FirstOrDefaultAsync(p => p.Id == id && p.WorkspaceId == workspaceId);
         if (project is null) return NotFound();
 
+        if (string.IsNullOrWhiteSpace(req.Name)) return BadRequest("Project name is required.");
+        if (!string.IsNullOrWhiteSpace(req.BaseUrl) && (!Uri.TryCreate(req.BaseUrl, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https"))) return BadRequest("Project URL must use HTTP or HTTPS.");
         project.Name        = req.Name.Trim();
         project.BaseUrl     = req.BaseUrl?.Trim();
         project.Description = req.Description?.Trim();
@@ -100,8 +109,11 @@ public class ProjectsController(AppDbContext db) : ControllerBase
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id && p.WorkspaceId == workspaceId);
         if (project is null) return NotFound();
 
+        if (await db.TestRuns.AnyAsync(r => r.ProjectId == id && (r.Status == RunStatus.Pending || r.Status == RunStatus.Running))) return Conflict("Wait for active runs before deleting this project.");
+        var runIds = await db.TestRuns.Where(r => r.ProjectId == id).Select(r => r.Id).ToListAsync();
         db.Projects.Remove(project);
         await db.SaveChangesAsync();
+        foreach (var runId in runIds) runner.RemoveArtifacts(runId);
         return NoContent();
     }
 }
