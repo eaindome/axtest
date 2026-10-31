@@ -1,7 +1,7 @@
 {
   "name": "@axtest/core",
   "version": "0.1.0",
-  "description": "axtest execution engine — parser, resolver, executor, reporter",
+  "description": "axtest execution engine \u2014 parser, resolver, executor, reporter",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./authoring": {
+      "types": "./dist/authoring/index.d.ts",
+      "import": "./dist/authoring/index.mjs",
+      "require": "./dist/authoring/index.js"
     }
   },
   "scripts": {
