@@ -57,10 +57,7 @@
     font-weight: 700;
     letter-spacing: -0.04em;
     text-transform: lowercase;
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #d97706;
     filter: drop-shadow(0 1px 0 rgb(217 119 6 / 0.15));
   }
 

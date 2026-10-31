@@ -14,6 +14,7 @@
   let selectedRun  = $state<RunDetail | null>(null)
   let loading      = $state(true)
   let loadingRun   = $state(false)
+  let error = $state('')
 
   $effect(() => {
     const ws = $currentWorkspace
@@ -23,6 +24,7 @@
 
   async function load(workspaceId: number, id: number) {
     loading = true
+    error = ''
     try {
       const [projs, runList] = await Promise.all([
         api().getProjects(workspaceId),
@@ -30,14 +32,14 @@
       ])
       project = projs.find(p => p.id === id) ?? null
       runs = runList
-    } catch {}
+    } catch { error = 'We couldn’t load this project’s run history. Please try again.' }
     loading = false
   }
 
   async function selectRun(run: RunListItem) {
     if (selectedRun?.id === run.id) { selectedRun = null; return }
     loadingRun = true
-    try { selectedRun = await api().getRun(projectId, run.id) } catch {}
+    try { selectedRun = await api().getRun(projectId, run.id) } catch { error = 'We couldn’t load the selected run. Please try again.' }
     loadingRun = false
   }
 
@@ -64,16 +66,17 @@
 </script>
 
 
+{#if error}<div class="error-banner m-4" role="alert">{error}<button class="underline ml-3" onclick={() => $currentWorkspace && load($currentWorkspace.id, projectId)}>Try again</button></div>{/if}
 {#if loading}
   <div class="flex-1 flex items-center justify-center">
     <Spinner size="lg" class="text-amber-500" />
   </div>
 {:else}
-  <div class="flex-1 flex overflow-hidden min-h-0">
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 bg-white dark:bg-zinc-950">
 
     <!-- Runs list (left panel) -->
-    <div class="w-72 shrink-0 border-r border-zinc-200 flex flex-col overflow-hidden">
-      <div class="px-4 py-2.5 border-b border-zinc-100 flex items-center justify-between">
+    <div class="w-full md:w-72 max-h-64 md:max-h-none shrink-0 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
+      <div class="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Runs</p>
         <span class="text-xs text-zinc-400">{runs.length}</span>
       </div>
@@ -82,21 +85,21 @@
         {#if runs.length === 0}
           <div class="px-4 py-10 text-center">
             <p class="text-sm text-zinc-400">No runs yet.</p>
-            <p class="text-xs text-zinc-400 mt-1">Use the CLI to submit a run.</p>
+            <p class="text-xs text-zinc-400 mt-1">Open the editor to write and run your first test.</p>
           </div>
         {:else}
-          <div class="divide-y divide-zinc-100">
+          <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
             {#each runs as run}
               <button
                 onclick={() => selectRun(run)}
-                class="w-full text-left px-4 py-2.5 hover:bg-zinc-50 transition-colors
-                       {selectedRun?.id === run.id ? 'bg-amber-50 border-l-[3px] border-amber-500 pl-[13px]' : 'border-l-[3px] border-transparent'}"
+                class="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors
+                       {selectedRun?.id === run.id ? 'bg-amber-50 dark:bg-amber-950/30 border-l-[3px] border-amber-500 pl-[13px]' : 'border-l-[3px] border-transparent'}"
               >
                 <div class="flex items-center gap-2 mb-0.5">
                   <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
                   <span class="text-xs text-zinc-400 tabular-nums ml-auto">{fmt(run.durationMs)}</span>
                 </div>
-                <p class="text-sm font-medium text-zinc-800 truncate">{run.suiteName ?? 'Manual Run'}</p>
+                <p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{run.suiteName ?? 'Manual Run'}</p>
                 <p class="text-xs text-zinc-400 mt-0.5">{fmtDate(run.startedAt)}</p>
                 <p class="text-xs text-zinc-400">{run.passedTests}/{run.totalTests} passed · {run.environment}</p>
               </button>
@@ -119,23 +122,23 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <p class="text-sm font-medium text-zinc-600">Select a run</p>
+          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Select a run</p>
           <p class="text-xs text-zinc-400 mt-1">Click any run on the left to see its results</p>
         </div>
       {:else}
         <!-- Detail header -->
-        <div class="px-5 py-3 border-b border-zinc-100 flex items-center gap-3 shrink-0">
+        <div class="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 shrink-0">
           <Badge variant={statusVariant(selectedRun.status)}>{selectedRun.status}</Badge>
-          <span class="text-sm font-medium text-zinc-800">{selectedRun.suiteName ?? 'Manual Run'}</span>
+          <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{selectedRun.suiteName ?? 'Manual Run'}</span>
           <span class="ml-auto text-xs text-zinc-400 tabular-nums">
             {selectedRun.passedTests}/{selectedRun.totalTests} passed · {fmt(selectedRun.durationMs)}
           </span>
         </div>
 
         <!-- Results list -->
-        <div class="overflow-y-auto flex-1 divide-y divide-zinc-100">
+        <div class="overflow-y-auto flex-1 divide-y divide-zinc-100 dark:divide-zinc-800">
           {#each selectedRun.results as result}
-            <div class="flex items-start gap-3 px-5 py-2.5 hover:bg-zinc-50 transition-colors">
+            <div class="flex items-start gap-3 px-5 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
               <!-- Status icon -->
               <div class="mt-0.5 shrink-0">
                 {#if result.status === 'passed'}
@@ -154,7 +157,7 @@
               </div>
 
               <div class="flex-1 min-w-0">
-                <p class="text-sm text-zinc-800">{result.testName}</p>
+                <p class="text-sm text-zinc-800 dark:text-zinc-200">{result.testName}</p>
                 {#if result.errorMessage}
                   <p class="text-xs text-red-600 mt-1 font-mono bg-red-50 rounded px-2 py-1">{result.errorMessage}</p>
                 {/if}

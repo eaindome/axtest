@@ -22,12 +22,13 @@
     <Spinner size="lg" class="text-amber-500" />
   </div>
 {:else}
-  <div class="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-4">
+  <div class="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center px-4 py-12">
     <div class="mb-8 flex flex-col items-center text-center">
       <Logo size="lg" align="center" tagline="Automated testing for dev teams" />
     </div>
 
     {@render children()}
+    <p class="mt-7 text-xs text-zinc-500 text-center">Readable tests. Repeatable confidence.</p>
   </div>
   <DevToggle />
 {/if}

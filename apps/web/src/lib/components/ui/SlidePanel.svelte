@@ -23,7 +23,7 @@
 
   <!-- Panel -->
   <div
-    class="fixed right-0 top-0 bottom-0 w-[400px] bg-white dark:bg-zinc-900
+    class="fixed right-0 top-0 bottom-0 w-full max-w-[440px] bg-white dark:bg-zinc-900
            border-l border-zinc-200 dark:border-zinc-800 shadow-2xl z-50 flex flex-col"
     transition:fly={{ x: 420, duration: 260, opacity: 1 }}
   >

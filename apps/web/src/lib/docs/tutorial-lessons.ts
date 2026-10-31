@@ -128,7 +128,7 @@ const LESSON_CHECKLISTS: Record<string, string[]> = {
   'tutorial-2-seed-test': [
     'Add one TEST named for the happy path',
     'Tag the test as seed',
-    'Steps: navigate → Add task → type title → Save',
+    'Steps: navigate / Add task / type title / Save',
     'Assert task visible and success toast',
   ],
   'tutorial-3-rules': [
@@ -160,7 +160,7 @@ const LESSON_CHECKLISTS: Record<string, string[]> = {
   'tutorial-8-organize': [
     'Build filter-tasks seed in your sandbox',
     'Add the url contains rule when on Completed tab',
-    'Run seed → Generate → run full file',
+    'Run seed / Generate / run full file',
   ],
 }
 

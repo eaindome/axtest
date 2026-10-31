@@ -17,7 +17,7 @@
 
   onMount(async () => {
     const saved = localStorage.getItem('axtest_sidebar_open')
-    if (saved != null) sidebarCompact = saved === '0'
+    sidebarCompact = window.innerWidth < 1024 || saved === '0'
 
     if (!localStorage.getItem('axtest_token')) {
       goto('/login', { replaceState: true })
@@ -53,7 +53,7 @@
       <button
         type="button"
         onclick={toggleSidebarCompact}
-        class="absolute top-3 left-3 z-40 size-8 rounded-md border border-zinc-200/80 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 shadow-sm transition-all duration-200"
+        class="absolute top-4 left-3 z-40 size-8 rounded-md border border-zinc-200/80 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 shadow-sm transition-all duration-200"
         aria-label={sidebarCompact ? 'Expand sidebar' : 'Shrink sidebar'}
         title={sidebarCompact ? 'Expand sidebar' : 'Shrink sidebar'}
       >

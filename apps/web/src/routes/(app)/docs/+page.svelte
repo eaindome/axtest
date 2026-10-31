@@ -222,7 +222,7 @@
               class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200"
             >
               {practiceLink.label}
-              <span aria-hidden="true">→</span>
+
             </button>
             {#if practiceLink.hint}
               <p class="text-xs text-zinc-400 mt-1">{practiceLink.hint}</p>
@@ -239,8 +239,7 @@
               onclick={prevTutorial}
               disabled={tutorialProgress.current === 1}
               class="text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ← Previous lesson
+            > Previous lesson
             </button>
             {#if tutorialProgress.current < tutorialProgress.total}
               <button
@@ -251,7 +250,7 @@
                 }}
                 class="text-sm font-semibold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
               >
-                Practice next lesson →
+                Practice next lesson
               </button>
             {:else}
               <button
@@ -259,7 +258,7 @@
                 onclick={() => (activeId = 'cheat-sheet')}
                 class="text-sm font-semibold text-amber-600 hover:text-amber-700 dark:text-amber-400"
               >
-                Open cheat sheet →
+                Open cheat sheet
               </button>
             {/if}
           </footer>

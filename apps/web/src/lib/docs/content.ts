@@ -51,7 +51,7 @@ Unlike one-off scripts, axtest is built around a repeatable workflow:
 
 | Screen | User actions |
 |--------|----------------|
-| **Login** | Email + password → dashboard |
+| **Login** | Email + password / dashboard |
 | **Task list** | See active tasks, filters (Active / Completed) |
 | **Add task** | Modal with "Task title", Save / Cancel |
 | **Task row** | Mark complete, delete |
@@ -69,14 +69,14 @@ Unlike one-off scripts, axtest is built around a repeatable workflow:
 \`\`\`text
 TaskFlow Todo (project)
 ├── auth/
-│   └── standard-login.axtest      ← shared login flow
+│   └── standard-login.axtest      — shared login flow
 ├── modules/
 │   └── todos/
-│       ├── add-task.axtest        ← tutorial focus
+│       ├── add-task.axtest        — tutorial focus
 │       ├── complete-task.axtest
 │       └── filter-tasks.axtest
 └── scenarios/
-    └── smoke.axtest               ← cross-module checks
+    └── smoke.axtest               — cross-module checks
 \`\`\`
 
 > **Practical tip**
@@ -96,10 +96,10 @@ Create \`modules/todos/add-task.axtest\` and define **what** we are testing befo
 
 ## Steps in the editor
 
-1. Open **Test Editor** → select project **TaskFlow Todo** (or your sandbox project)
-2. In the file explorer, right-click \`modules/todos/\` → **New file** → \`add-task.axtest\`
+1. Open **Test Editor** / select project **TaskFlow Todo** (or your sandbox project)
+2. In the file explorer, right-click \`modules/todos/\` / **New file** / \`add-task.axtest\`
 3. Switch to **Code** view and paste the skeleton below
-4. Switch to **Visual** → **File setup** to confirm title and URL
+4. Switch to **Visual** / **File setup** to confirm title and URL
 
 ## File skeleton
 
@@ -147,13 +147,13 @@ One **seed** test that proves "user can add a task" on TaskFlow. Every generated
 
 ## In Visual editor
 
-1. Open **Test cases** tab → **+ Add test**
+1. Open **Test cases** tab / **+ Add test**
 2. Name: \`Add a new task — seed\`
-3. **Kind** → **Seed**
-4. Add steps using the verb dropdowns (navigate → click → type → click)
+3. **Kind** / **Seed**
+4. Add steps using the verb dropdowns (navigate / click / type / click)
 5. Under **Assert**, add:
-   - **Is visible** → \`Buy groceries\`
-   - **Toast message** → \`Task created\`
+   - **Is visible** / \`Buy groceries\`
+   - **Toast message** / \`Task created\`
 
 ## In Code view
 
@@ -172,7 +172,7 @@ TEST "Add a new task — seed"
 
 ## Run it
 
-1. Toolbar → environment **Staging** (set URL if prompted)
+1. Toolbar / environment **Staging** (set URL if prompted)
 2. Click **Run** on the seed card only
 3. Seed must **pass** before Generate is available
 
@@ -192,7 +192,7 @@ Rules are **structured constraints** — not free-text notes. They describe what
 
 ## Rules for add-task
 
-In **File setup → Rules** (or the \`RULES\` block in code):
+In **File setup / Rules** (or the \`RULES\` block in code):
 
 \`\`\`text
 RULES
@@ -207,8 +207,8 @@ RULES
 
 | Rule | Generated / manual test idea |
 |------|------------------------------|
-| \`field "Task title" is required\` | Empty title → error message |
-| \`length between 1 and 120\` | 256-character title → "too long" |
+| \`field "Task title" is required\` | Empty title / error message |
+| \`length between 1 and 120\` | 256-character title / "too long" |
 | \`on empty_title show error "…"\` | Assert exact copy in negative test |
 | \`element "Add task" is_enabled\` | Positive check that button is clickable |
 
@@ -247,8 +247,8 @@ After the seed passes, let axtest propose a **scenario matrix** for TaskFlow add
 | Kind | TaskFlow example |
 |------|------------------|
 | **Positive** | Alternate valid title in \`Task title\` |
-| **Negative** | Empty title → assert \`Title is required\` |
-| **Negative** | Invalid characters → error state |
+| **Negative** | Empty title / assert \`Title is required\` |
+| **Negative** | Invalid characters / error state |
 | **Edge** | Very long title (256 chars) |
 | **Edge** | Whitespace-only title |
 
@@ -403,12 +403,12 @@ TaskFlow grows beyond add-task. Structure files so teammates find specs quickly.
 
 \`\`\`text
 modules/todos/
-  add-task.axtest       ← creation + validation
-  complete-task.axtest  ← mark done / undo
-  delete-task.axtest    ← remove + confirm dialog
-  filter-tasks.axtest   ← active vs completed tabs
+  add-task.axtest       — creation + validation
+  complete-task.axtest  — mark done / undo
+  delete-task.axtest    — remove + confirm dialog
+  filter-tasks.axtest   — active vs completed tabs
 scenarios/
-  smoke.axtest          ← imports critical paths only
+  smoke.axtest          — imports critical paths only
 auth/
   standard-login.axtest
 \`\`\`
@@ -423,16 +423,16 @@ ${FILTER_TASKS_SPEC}
 
 | Action | How |
 |--------|-----|
-| New folder | Right-click → New folder → \`modules/todos\` |
+| New folder | Right-click / New folder / \`modules/todos\` |
 | Move file | Drag \`add-task.axtest\` into \`todos/\` |
-| Rename | Context menu → Rename (updates paths, not test names inside) |
-| Delete | Context menu → Delete (careful — no undo) |
+| Rename | Context menu / Rename (updates paths, not test names inside) |
+| Delete | Context menu / Delete (careful — no undo) |
 
 ## Graduation exercise
 
 1. Create \`filter-tasks.axtest\` with the seed above
 2. Add rules: \`url contains "filter=done"\` when Completed tab is active
-3. Run seed → Generate → run full file
+3. Run seed / Generate / run full file
 4. Open **Knowledge base** only when stuck — you now have a full TaskFlow todo suite`,
   },
 
@@ -515,7 +515,7 @@ Lint warns on unrecognized assert lines. Fix in Visual by picking a type from th
     id: 'wf-generation',
     groupId: 'workflows',
     title: 'Generation workflow',
-    summary: 'Seed → pass → generate → review.',
+    summary: 'Seed / pass / generate / review.',
     content: `1. One **seed** per feature file (TaskFlow: one per module like add-task)
 2. **Run** seed until green
 3. **Generate** — skips duplicate variant suffixes if you click again
@@ -593,8 +593,8 @@ TEST "Add a new task — seed"
 
 | I want to… | Go to… |
 |------------|--------|
-| Edit rules | Visual → File setup |
-| Edit steps | Visual → Test cases → expand card |
+| Edit rules | Visual / File setup |
+| Edit steps | Visual / Test cases / expand card |
 | See all tests | Outline panel (right) |
 | Change URL | Toolbar env + URL chip |
 | Learn by doing | Tutorial Steps 1–8 in this guide |`,

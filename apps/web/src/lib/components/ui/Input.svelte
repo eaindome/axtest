@@ -27,7 +27,8 @@
     class: cls = ''
   }: Props = $props()
 
-  let inputId = $derived(id ?? (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined))
+  const generatedId = $props.id()
+  let inputId = $derived(id ?? generatedId)
 </script>
 
 <div class="flex flex-col gap-1.5 {cls}">
@@ -40,20 +41,22 @@
     {type}
     id={inputId}
     bind:value
+    aria-invalid={error ? true : undefined}
+    aria-describedby={error || hint ? `${inputId}-description` : undefined}
     {placeholder}
     {required}
     {disabled}
     autocomplete={autocomplete as never}
-    class="h-9 w-full rounded-lg border px-3 text-sm
+    class="h-10 w-full rounded-lg border px-3 text-sm
            text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500
            bg-white dark:bg-zinc-800 transition-colors
            focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent
            disabled:bg-zinc-50 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed
-           {error ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-zinc-300 dark:border-zinc-600'}"
+           {error ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-zinc-200 dark:border-zinc-700'}"
   />
   {#if error}
-    <p class="text-xs text-red-600 dark:text-red-400">{error}</p>
+    <p id={`${inputId}-description`} role="alert" class="text-xs text-red-600 dark:text-red-400">{error}</p>
   {:else if hint}
-    <p class="text-xs text-zinc-500 dark:text-zinc-400">{hint}</p>
+    <p id={`${inputId}-description`} class="text-xs text-zinc-500 dark:text-zinc-400">{hint}</p>
   {/if}
 </div>

@@ -29,7 +29,7 @@
 </script>
 
 <Card class="w-full max-w-sm p-8">
-  <h2 class="text-xl font-semibold text-zinc-900 mb-1">Create account</h2>
+  <h2 class="text-2xl tracking-tight font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Create account</h2>
   <p class="text-sm text-zinc-500 mb-6">Start testing in minutes</p>
 
   <form onsubmit={submit} class="space-y-4">

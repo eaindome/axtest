@@ -59,6 +59,8 @@
               <svg class="size-4 text-emerald-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
               </svg>
+            {:else if r.status === 'skipped'}
+              <span class="text-zinc-400 text-xs shrink-0 mt-0.5" aria-label="Skipped">—</span>
             {:else}
               <svg class="size-4 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
@@ -76,6 +78,8 @@
             <span class="text-xs text-zinc-400 shrink-0 tabular-nums">{fmt(r.durationMs)}</span>
           </div>
         {/each}
+      {:else}
+        <div class="p-8 text-center"><p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">No results to show yet</p><p class="text-xs text-zinc-500 mt-2">Run a test to see its status, duration, and any failed steps.</p></div>
       {/if}
     </div>
   </div>

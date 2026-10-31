@@ -29,5 +29,8 @@
 	],
 	"/(auth)/register": [
 		"src/routes/+layout.ts"
+	],
+	"/(app)/settings": [
+		"src/routes/+layout.ts"
 	]
 }

@@ -66,7 +66,7 @@
   <div class="w-px h-5 bg-zinc-200 dark:bg-zinc-700 shrink-0" aria-hidden="true"></div>
 {/snippet}
 
-<header class="h-14 shrink-0 flex items-center gap-3 pl-14 pr-4 border-b border-zinc-200/80 dark:border-zinc-800
+<header class="min-h-16 shrink-0 flex flex-wrap items-center gap-3 py-3 pl-14 pr-4 border-b border-zinc-200/80 dark:border-zinc-800
                bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm">
 
   <!-- Breadcrumb -->
@@ -102,7 +102,7 @@
 
     {#if activeFile}
       <span class="text-zinc-300 dark:text-zinc-600 shrink-0">/</span>
-      <span class="text-zinc-500 dark:text-zinc-400 truncate max-w-[200px] font-mono">{activeFile.name}</span>
+      <span class="text-zinc-500 dark:text-zinc-400 truncate max-w-[140px] font-mono">{activeFile.name}</span>
       {#if dirty}
         <span class="size-1.5 rounded-full bg-amber-500 shrink-0" title="Unsaved changes"></span>
       {/if}
@@ -146,7 +146,7 @@
         title={canEditEnv
           ? (environmentNeedsSetup ? `Set up ${envLabel(environment)} URL` : 'Edit environment URL')
           : 'Production URL is set on the project'}
-        class="hidden lg:flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border text-sm truncate
+        class="hidden 2xl:flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border text-sm truncate
                {canEditEnv && environmentNeedsSetup
                  ? 'border-dashed border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-300 font-medium hover:border-amber-400'
                  : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-zinc-500 dark:text-zinc-400'}
@@ -196,26 +196,12 @@
     {/if}
   </button>
 
-  <!-- Notifications -->
-  <button
-    aria-label="Notifications"
-    class="size-8 rounded-md flex items-center justify-center relative text-zinc-400 dark:text-zinc-500
-           hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors shrink-0"
-  >
-    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-    </svg>
-    <span class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-amber-500"></span>
-  </button>
-
-  {@render divider()}
-
   <!-- Actions -->
   <div class="flex items-center gap-2 shrink-0">
     <Button variant="secondary" size="sm" onclick={onSave} loading={saving} disabled={!dirty}>
       Save
     </Button>
-    <Button size="sm" onclick={onRun} loading={running}>
+    <Button size="sm" onclick={onRun} loading={running} disabled={!activeFile || saving || validationErrors > 0}>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
         <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
       </svg>

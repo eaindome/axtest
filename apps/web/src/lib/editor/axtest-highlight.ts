@@ -1,5 +1,5 @@
 import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
 
 const KEYWORDS = new Set([

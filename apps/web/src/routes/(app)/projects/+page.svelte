@@ -11,6 +11,9 @@
 
   let projects  = $state<Project[]>([])
   let loading   = $state(true)
+  let loadError = $state('')
+  let query = $state('')
+  const filteredProjects = $derived(projects.filter(p => `${p.name} ${p.description ?? ''} ${p.baseUrl ?? ''}`.toLowerCase().includes(query.toLowerCase())))
   let showPanel = $state(false)
   let creating  = $state(false)
   let formError = $state('')
@@ -28,16 +31,17 @@
     pageSubtitle.set($currentWorkspace
       ? `${projects.length} project${projects.length !== 1 ? 's' : ''} in ${$currentWorkspace.name}`
       : '')
-    pageAction.set({ label: '+ New Project', onclick: () => (showPanel = true) })
+    pageAction.set({ label: 'New project', onclick: () => (showPanel = true) })
     return () => { pageTitle.set(''); pageSubtitle.set(''); pageAction.set(null) }
   })
 
   async function load(workspaceId: number) {
     loading = true
+    loadError = ''
     try {
       projects = await api().getProjects(workspaceId)
       globalProjects.set(projects)
-    } catch {}
+    } catch { loadError = 'We couldn’t load your projects. Please try again.' }
     loading = false
   }
 
@@ -53,6 +57,7 @@
         description: newDesc.trim() || undefined
       })
       projects = [p, ...projects]
+      globalProjects.set(projects)
       showPanel = false
       newName = newUrl = newDesc = ''
     } catch (err) {
@@ -67,88 +72,46 @@
     newName = newUrl = newDesc = formError = ''
   }
 
-  // Simulated last-run status per project
-  const lastRunStatus = ['passed', 'failed']
-  const runHistory = [
-    ['pass','pass','pass','fail','pass','pass','fail','pass'],
-    ['pass','fail','pass','pass','fail','pass','pass','pass']
-  ]
-
-  const dotColor = (s: string) => s === 'pass' ? 'bg-green-400' : 'bg-red-400'
 </script>
 
-<!-- Project list -->
-<div class="flex-1 overflow-auto">
-  <div class="px-5 py-4">
-
+<div class="flex-1 overflow-auto bg-zinc-50/80 dark:bg-zinc-950">
+  <div class="page-shell space-y-7">
+    <div><p class="eyebrow mb-3">Your applications</p><h1 class="page-heading">Projects</h1><p class="page-description">Choose an application to manage its test files, environments, and run history.</p></div>
+    <div class="flex flex-wrap justify-between items-center gap-4">
+      <p class="text-sm text-zinc-500">{projects.length} project{projects.length === 1 ? '' : 's'} in this workspace</p>
+      <input bind:value={query} type="search" aria-label="Search projects" placeholder="Search projects…" class="h-10 w-full sm:w-72 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-zinc-800 dark:text-zinc-100" />
+    </div>
+    {#if loadError}<div class="error-banner flex items-center justify-between gap-3" role="alert">{loadError}<button class="underline font-semibold" onclick={() => $currentWorkspace && load($currentWorkspace.id)}>Try again</button></div>{/if}
     {#if loading}
-      <div class="flex items-center justify-center py-16">
-        <Spinner size="lg" class="text-amber-500" />
-      </div>
-    {:else if projects.length === 0}
-      <div class="border border-zinc-200 rounded-lg py-12 text-center bg-white">
-        <div class="size-9 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-3">
-          <svg class="size-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-          </svg>
-        </div>
-        <p class="text-sm font-semibold text-zinc-700">No projects yet</p>
-        <p class="text-xs text-zinc-400 mt-1">Create your first project to start writing tests</p>
-        <button onclick={() => (showPanel = true)} class="mt-3 text-xs font-semibold text-amber-600 hover:text-amber-700">
-          Create project →
-        </button>
-      </div>
+      <div class="surface p-16 flex justify-center gap-3 items-center" role="status"><Spinner size="sm" /><span class="text-sm text-zinc-500">Loading projects…</span></div>
+    {:else if !projects.length}
+      <div class="surface px-6 py-16 text-center"><div class="size-14 mx-auto mb-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-2xl" aria-hidden="true">+</div><h2 class="section-heading">Give your tests a home</h2><p class="page-description mb-6">Create a project for your application, then write your first test.</p><Button onclick={() => showPanel = true}>Create your first project</Button></div>
+    {:else if !filteredProjects.length}
+      <div class="surface p-12 text-center"><h2 class="section-heading">No matching projects</h2><p class="page-description">Try another name or URL.</p><button class="mt-4 text-sm font-medium text-amber-700 dark:text-amber-400" onclick={() => query = ''}>Clear search</button></div>
     {:else}
-      <div class="border border-zinc-200 rounded-lg overflow-hidden divide-y divide-zinc-100 bg-white">
-        {#each projects as project, i}
-          <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors">
-
-            <div class="size-7 rounded-md bg-[#f3f3f3] border border-zinc-200 flex items-center justify-center shrink-0">
-              <svg class="size-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-              </svg>
-            </div>
-
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <p class="text-sm font-medium text-zinc-900">{project.name}</p>
-                <span class="text-xs px-1.5 py-0.5 rounded font-medium leading-none
-                  {lastRunStatus[i % 2] === 'passed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
-                  {lastRunStatus[i % 2] === 'passed' ? 'passing' : 'failing'}
-                </span>
-              </div>
-              <div class="flex items-center gap-3 mt-0.5">
-                {#if project.baseUrl}
-                  <p class="text-xs text-zinc-400 truncate max-w-xs">{project.baseUrl}</p>
-                {/if}
-                <div class="flex items-center gap-0.5">
-                  {#each runHistory[i % 2] as dot}
-                    <div class="size-1.5 rounded-full {dotColor(dot)}"></div>
-                  {/each}
-                </div>
-                <span class="text-xs text-zinc-400">{project.runCount} runs</span>
+      <section class="surface overflow-hidden" aria-label="Applications under test">
+        <div class="hidden lg:grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_220px] gap-6 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-medium text-zinc-500">
+          <span>Application</span><span>Production URL</span><span>Runs</span><span class="text-right">Workspace</span>
+        </div>
+        {#each filteredProjects as project}
+          <article class="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_220px] gap-4 lg:gap-6 lg:items-center px-6 py-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40 transition-colors">
+            <div class="flex items-start gap-3 min-w-0">
+              <span class="size-10 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 text-amber-700 dark:text-amber-400 flex items-center justify-center text-xs font-semibold shrink-0" aria-hidden="true">{project.name.slice(0, 2).toUpperCase()}</span>
+              <div class="min-w-0">
+                <a href="/editor?project={project.id}" class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-amber-700">{project.name}</a>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mt-1 line-clamp-2">{project.description || 'Test files and results for this application.'}</p>
               </div>
             </div>
-
-            <div class="flex items-center gap-1.5 shrink-0">
-              <a
-                href="/projects/{project.id}"
-                class="text-xs font-medium text-zinc-500 hover:text-zinc-800 px-2.5 py-1 rounded
-                       border border-zinc-200 hover:border-zinc-300 bg-white transition-colors"
-              >
-                Runs
-              </a>
-              <a
-                href="/editor?project={project.id}"
-                class="text-xs font-semibold text-amber-700 hover:text-amber-800 px-2.5 py-1 rounded
-                       border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 transition-colors"
-              >
-                Open Editor
-              </a>
+            <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400 truncate" title={project.baseUrl ?? ''}>{project.baseUrl || 'Not configured'}</p>
+            <p class="text-sm tabular-nums text-zinc-600 dark:text-zinc-400">{project.runCount}<span class="lg:hidden"> runs</span></p>
+            <div class="flex items-center justify-start lg:justify-end gap-2">
+              <a class="action-link" href="/projects/{project.id}" aria-label={`View runs for ${project.name}`}>View runs</a>
+              <a class="action-link primary" href="/editor?project={project.id}" aria-label={`Open tests for ${project.name}`}>Open tests</a>
             </div>
-          </div>
+          </article>
         {/each}
-      </div>
+      </section>
+      <p class="text-xs text-zinc-500 leading-relaxed">One project per application. Configure staging and local environments inside the test editor.</p>
     {/if}
   </div>
 </div>
@@ -172,7 +135,7 @@
       <Button variant="secondary" onclick={closePanel}>Cancel</Button>
     </div>
 
-    <div class="rounded-lg bg-zinc-50 border border-zinc-200 p-4">
+    <div class="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-4">
       <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">What's a project?</p>
       <p class="text-xs text-zinc-500 leading-relaxed">
         A project maps to one web application. Inside each project you'll create test suites

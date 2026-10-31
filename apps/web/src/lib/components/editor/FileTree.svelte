@@ -294,6 +294,7 @@
         ondrop={(e) => onDropOnFolder(e, node.path)}
         oncontextmenu={(e) => openContextMenu(e, { kind: 'folder', path: node.path })}
         role="treeitem"
+        aria-selected={selected}
         aria-expanded={open}
         tabindex="-1"
       >
@@ -358,6 +359,7 @@
       ondragend={onDragEnd}
       oncontextmenu={(e) => openContextMenu(e, { kind: 'file', file })}
       role="treeitem"
+      aria-selected={active}
       tabindex="-1"
     >
       {#if isRenaming}
@@ -466,6 +468,8 @@
       ondragleave={(e) => onDragLeaveFolder(e, null)}
       ondrop={(e) => onDropOnFolder(e, null)}
       role="tree"
+      tabindex="0"
+      aria-label="Project files"
     >
       {#each tree as node}
         {@render treeNode(node, 0)}

@@ -4,7 +4,7 @@
 </script>
 
 {#if dev}
-  <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2.5 bg-white border border-zinc-200 rounded-full shadow-md px-3.5 py-2">
+  <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-full shadow-md px-3.5 py-2">
     <span class="text-xs text-zinc-400 font-medium">API</span>
 
     <button

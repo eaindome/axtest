@@ -38,6 +38,7 @@
   let dirty          = $state(false)
   let dirtyFileIds   = $state<Set<string>>(new Set())
   let fileRunStatus  = $state<Record<string, FileRunStatus>>({})
+  let feedback = $state('')
   let saving         = $state(false)
   let running        = $state(false)
   let loadingFiles   = $state(true)
@@ -231,7 +232,7 @@
       const pid = paramProjectId()
       const target = pid ? projs.find(p => p.id === pid) : projs[0]
       if (target) await selectProject(target)
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function bootLessonPractice(id: string) {
@@ -274,11 +275,12 @@
         dirty = false
         visualParsed = mode === 'visual' ? parseAxtest(updated.content) : visualParsed
       }
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
     lessonResetting = false
   }
 
   async function selectProject(project: Project, preferredFilePath?: string | null) {
+    if (dirty && !(await saveFile())) return
     activeProject = project
     loadingFiles = true
     activeFile = null
@@ -304,12 +306,12 @@
           : null
         selectFile(fromQuery ?? files[0])
       }
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
     loadingFiles = false
   }
 
-  function selectFile(file: TestFile) {
-    if (dirty && activeFile) saveFile()
+  async function selectFile(file: TestFile) {
+    if (dirty && activeFile && !(await saveFile())) return
     activeFile = file
     editorContent = file.content
     dirty = false
@@ -334,24 +336,33 @@
   }
 
   async function saveFile() {
-    if (!activeProject || !activeFile || !dirty) return
+    if (!activeProject || !activeFile || !dirty) return true
+    if (saving) return false
+    const fileId = activeFile.id
+    const content = editorContent
+    feedback = ''
     saving = true
     try {
       const updated = await api().saveFile(activeProject.id, { ...activeFile, content: editorContent })
       files = files.map(f => f.id === updated.id ? updated : f)
-      activeFile = updated
-      dirty = false
+      if (activeFile?.id === fileId) {
+        activeFile = updated
+        dirty = editorContent !== content
+      }
       const next = new Set(dirtyFileIds)
-      next.delete(updated.id)
+      if (!dirty) next.delete(updated.id)
       dirtyFileIds = next
-    } catch {}
-    saving = false
+      return !dirty
+    } catch (error) {
+      feedback = error instanceof Error ? error.message : 'We couldn’t save this file. Your changes are still in the editor.'
+      return false
+    } finally { saving = false }
   }
 
   async function runTests() {
     if (!activeProject || !activeFile) return
     await withEnvironmentReady(async () => {
-      if (dirty) await saveFile()
+      if (dirty && !(await saveFile())) return
       running = true
       resultsOpen = true
       runResult = null
@@ -368,7 +379,7 @@
           : result.passedTests === 0 ? 'failed'
           : 'partial'
         fileRunStatus = { ...fileRunStatus, [activeFile!.id]: status }
-      } catch {}
+      } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
       running = false
     })
   }
@@ -407,10 +418,10 @@
     await withEnvironmentReady(async () => {
       runningTestId = testId
       try {
-        const parsed = parseAxtest(editorContent)
+        const parsed = visualParsed ?? parseAxtest(editorContent)
         const test = parsed.tests.find(t => t.id === testId)
         if (!test) return
-        if (dirty) await saveFile()
+        if (dirty && !(await saveFile())) return
         resultsOpen = true
         running = true
         runResult = await api().runFile(activeProject!.id, {
@@ -420,9 +431,8 @@
           environment,
           testNames: [test.name],
         })
-      } catch {}
-      running = false
-      runningTestId = null
+      } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+      finally { running = false; runningTestId = null }
     })
   }
 
@@ -430,7 +440,7 @@
     if (!activeProject || !activeFile) return
     generatingTestId = testId
     try {
-      if (dirty) await saveFile()
+      if (dirty && !(await saveFile())) return
       const res = await api().generateTests(activeProject.id, {
         fileId: activeFile.id,
         content: editorContent,
@@ -446,8 +456,8 @@
         const firstGenerated = seedIdx >= 0 ? parsed.tests[seedIdx + 1] : null
         if (firstGenerated) selectTest(firstGenerated.id)
       }
-    } catch {}
-    generatingTestId = null
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    finally { generatingTestId = null }
   }
 
   async function handleCreateFile(name: string, folder: string | null) {
@@ -458,7 +468,7 @@
       files = explorer.files
       explorerFolders = explorer.folders
       selectFile(file)
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleCreateFolder(path: string) {
@@ -467,7 +477,7 @@
       const explorer = await api().createFolder(activeProject.id, path)
       files = explorer.files
       explorerFolders = explorer.folders
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function applyExplorer(explorer: { files: TestFile[]; folders: string[] }) {
@@ -491,7 +501,7 @@
       dirtyFileIds = nextDirty
       const { [fileId]: _, ...rest } = fileRunStatus
       fileRunStatus = rest
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleRenameFile(fileId: string, name: string) {
@@ -500,7 +510,7 @@
       const updated = await api().renameFile(activeProject.id, fileId, { name })
       files = files.map(f => f.id === updated.id ? updated : f)
       if (activeFile?.id === fileId) activeFile = updated
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleMoveFile(fileId: string, folder: string | null) {
@@ -512,7 +522,7 @@
       if (activeFile?.id === fileId) {
         activeFile = files.find(f => f.id === fileId) ?? null
       }
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleDeleteFolder(path: string) {
@@ -530,7 +540,7 @@
         visualParsed = activeFile ? parseAxtest(activeFile.content) : null
       }
       dirtyFileIds = new Set([...dirtyFileIds].filter(id => !deletedIds.includes(id)))
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleRenameFolder(path: string, name: string) {
@@ -542,7 +552,7 @@
         const refreshed = files.find(f => f.id === activeFile!.id)
         if (refreshed) activeFile = refreshed
       }
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   async function handleMoveFolder(path: string, targetFolder: string | null) {
@@ -554,7 +564,7 @@
         const refreshed = files.find(f => f.id === activeFile!.id)
         if (refreshed) activeFile = refreshed
       }
-    } catch {}
+    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
   }
 
   onMount(() => {
@@ -600,6 +610,10 @@
     onEnvironmentChange={handleEnvironmentChange}
     onEditEnvironment={openEditEnvironmentModal}
   />
+
+  {#if feedback}
+    <div class="error-banner mx-3 my-2 flex items-start justify-between gap-4" role="alert"><span>{feedback}</span><button aria-label="Dismiss message" class="font-semibold" onclick={() => feedback = ''}>×</button></div>
+  {/if}
 
   <EnvironmentSetupModal
     open={envModalOpen}

@@ -121,7 +121,7 @@
       onclick={openFullLesson}
       class="w-full text-[11px] font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 py-1 transition-colors text-left"
     >
-      Wider view in Knowledge base →
+      Wider view in Knowledge base
     </button>
 
     <button
@@ -142,15 +142,14 @@
         disabled={!prevLesson}
         class="flex-1 px-2 py-2 rounded-lg text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800
                disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        ← Prev
+      > Prev
       </button>
       <button
         type="button"
         onclick={goNext}
         class="flex-1 px-2 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition-colors"
       >
-        {nextLesson ? 'Next lesson →' : 'Finish →'}
+        {nextLesson ? 'Next lesson' : 'Finish'}
       </button>
     </div>
   </div>
