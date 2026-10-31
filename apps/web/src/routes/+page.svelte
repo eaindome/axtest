@@ -1,10 +1,13 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
+  import { get } from 'svelte/store'
+  import { useMock } from '$lib/stores/dev'
+  import { authStore } from '$lib/stores/auth'
   import { browser } from '$app/environment'
   import Spinner from '$lib/components/ui/Spinner.svelte'
 
   if (browser) {
-    goto(localStorage.getItem('axtest_token') ? '/dashboard' : '/login', { replaceState: true })
+    goto((!get(useMock) || get(authStore).token) ? '/dashboard' : '/login', { replaceState: true })
   }
 </script>
 

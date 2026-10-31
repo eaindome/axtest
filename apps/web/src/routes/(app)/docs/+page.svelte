@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modeKey } from '$lib/stores/dev'
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
   import { fade, slide } from 'svelte/transition'
@@ -50,7 +51,7 @@
   onMount(() => {
     navReady = true
     const urlLesson = get(page).url.searchParams.get('lesson')
-    const saved = urlLesson ?? localStorage.getItem('docs_active_section')
+    const saved = urlLesson ?? localStorage.getItem(modeKey('docs_active_section'))
     if (saved && DOC_SECTIONS.some(s => s.id === saved)) {
       activeId = saved
       expandedGroupId = DOC_SECTIONS.find(s => s.id === saved)?.groupId ?? 'tutorial'
@@ -78,7 +79,7 @@
     if (!practiceLink) return
     beginLessonPractice(activeId)
     setTutorialActiveLesson(activeId)
-    localStorage.setItem('docs_active_section', activeId)
+    localStorage.setItem(modeKey('docs_active_section'), activeId)
     goto(practiceLink.href)
   }
 
@@ -89,7 +90,7 @@
     setTutorialActiveLesson(lessonId)
     activeId = lessonId
     expandedGroupId = 'tutorial'
-    localStorage.setItem('docs_active_section', lessonId)
+    localStorage.setItem(modeKey('docs_active_section'), lessonId)
     goto(link.href)
   }
 
@@ -97,7 +98,7 @@
     activeId = id
     const group = DOC_SECTIONS.find(s => s.id === id)?.groupId
     if (group) expandedGroupId = group
-    localStorage.setItem('docs_active_section', id)
+    localStorage.setItem(modeKey('docs_active_section'), id)
   }
 
   function toggleGroup(groupId: string) {

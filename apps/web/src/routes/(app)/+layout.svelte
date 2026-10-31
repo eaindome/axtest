@@ -1,4 +1,9 @@
 <script lang="ts">
+  import { get } from 'svelte/store'
+  import { dev } from '$app/environment'
+  import { authStore, setAuth, clearAuth } from '$lib/stores/auth'
+  import { useMock } from '$lib/stores/dev'
+  import { developmentSession, ApiError } from '$lib/api/real'
   import { onMount } from 'svelte'
   import { page } from '$app/stores'
   import { goto } from '$app/navigation'
@@ -11,30 +16,42 @@
 
   let { children } = $props()
   let ready = $state(false)
+  let connectionError = $state('')
   let sidebarCompact = $state(false)
 
   const isEditor = $derived($page.url.pathname.startsWith('/editor'))
 
-  onMount(async () => {
+  onMount(() => {
     const saved = localStorage.getItem('axtest_sidebar_open')
     sidebarCompact = window.innerWidth < 1024 || saved === '0'
-
-    if (!localStorage.getItem('axtest_token')) {
-      goto('/login', { replaceState: true })
-      return
-    }
-
-    try {
-      const list = await api().getWorkspaces()
-      workspaces.set(list)
-      const ws = list.find(w => w.id === savedWorkspaceId) ?? list[0]
-      if (ws) setWorkspace(ws)
-    } catch {
-      // non-fatal — pages handle missing workspace gracefully
-    }
-
-    ready = true
+    void initialize()
   })
+
+  async function initialize() {
+    ready = false
+    connectionError = ''
+    try {
+      if (!get(useMock) && dev) {
+        const session = await developmentSession()
+        setAuth(session.user, session.token)
+      } else if (!get(authStore).token) {
+        await goto('/login', { replaceState: true })
+        return
+      }
+      const list = await api().getWorkspaces()
+      if (!list.length) throw new Error('No workspace is available for this session.')
+      workspaces.set(list)
+      setWorkspace(list.find(w => w.id === savedWorkspaceId) ?? list[0])
+      ready = true
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401 && !dev) {
+        clearAuth()
+        await goto('/login', { replaceState: true })
+        return
+      }
+      connectionError = error instanceof Error ? error.message : 'Could not open this workspace.'
+    }
+  }
 
   function toggleSidebarCompact() {
     sidebarCompact = !sidebarCompact
@@ -42,7 +59,11 @@
   }
 </script>
 
-{#if !ready}
+{#if connectionError}
+  <div class="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+    <section class="surface p-8 max-w-lg w-full" role="alert"><p class="eyebrow mb-3">{$useMock ? 'Mock mode' : 'API mode'}</p><h1 class="section-heading">Workspace unavailable</h1><p class="page-description mb-6">{connectionError}</p><button class="action-link primary" onclick={initialize}>Try again</button><p class="text-xs text-zinc-500 mt-5">Use the data switch to change modes.</p></section>
+  </div>
+{:else if !ready}
   <div class="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center">
     <Spinner size="lg" class="text-amber-500" />
   </div>
@@ -69,5 +90,5 @@
       </main>
     </div>
   </div>
-  <DevToggle />
 {/if}
+<DevToggle />

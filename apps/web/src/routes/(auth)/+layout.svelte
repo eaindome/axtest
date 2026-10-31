@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { get } from 'svelte/store'
+  import { useMock } from '$lib/stores/dev'
+  import { authStore } from '$lib/stores/auth'
+  import { dev } from '$app/environment'
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import Spinner from '$lib/components/ui/Spinner.svelte'
@@ -9,7 +13,7 @@
   let checking = $state(true)
 
   onMount(() => {
-    if (localStorage.getItem('axtest_token')) {
+    if ((!get(useMock) && dev) || get(authStore).token) {
       goto('/dashboard', { replaceState: true })
     } else {
       checking = false

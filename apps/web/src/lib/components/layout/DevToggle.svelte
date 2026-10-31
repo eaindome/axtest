@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { useMock } from '$lib/stores/dev'
+  import { useMock, switchDataMode } from '$lib/stores/dev'
   import { dev } from '$app/environment'
 </script>
 
 {#if dev}
   <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-full shadow-md px-3.5 py-2">
-    <span class="text-xs text-zinc-400 font-medium">API</span>
+    <span class="text-xs text-zinc-400 font-medium">Data</span>
 
     <button
-      onclick={() => useMock.update(v => !v)}
+      onclick={() => switchDataMode(!$useMock)}
       role="switch"
       aria-checked={$useMock}
       aria-label="Toggle mock API"
@@ -22,7 +22,7 @@
     </button>
 
     <span class="text-xs font-semibold w-7 {$useMock ? 'text-amber-600' : 'text-zinc-400'}">
-      {$useMock ? 'Mock' : 'Real'}
+      {$useMock ? 'Mock' : 'API'}
     </span>
   </div>
 {/if}
