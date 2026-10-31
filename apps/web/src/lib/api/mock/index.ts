@@ -44,8 +44,8 @@ export const getProjects = async (_workspaceId: number): Promise<Project[]> => {
 
 export const createProject = async (_workspaceId: number, data: CreateProjectRequest): Promise<Project> => {
   await delay()
-  return {
-    id: 99,
+  const project: Project = {
+    id: 10000 + mockProjects.length,
     name: data.name,
     baseUrl: data.baseUrl ?? null,
     description: data.description ?? null,
@@ -54,6 +54,8 @@ export const createProject = async (_workspaceId: number, data: CreateProjectReq
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
+  mockProjects.push(project)
+  return project
 }
 
 export const getRuns = async (_projectId: number, _page = 1): Promise<RunListItem[]> => {
