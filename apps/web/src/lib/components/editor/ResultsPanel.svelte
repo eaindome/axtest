@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RunEvidence from './RunEvidence.svelte'
   import Badge from '$lib/components/ui/Badge.svelte'
   import Spinner from '$lib/components/ui/Spinner.svelte'
   import ResizeHandle from './ResizeHandle.svelte'
@@ -47,13 +48,14 @@
     </div>
 
     <div class="flex-1 overflow-y-auto panel-scroll">
+      {#if runResult?.errorMessage}<p class="error-banner m-3" role="alert">{runResult.errorMessage}</p>{/if}
       {#if running}
         <div class="flex items-center justify-center h-full gap-2">
           <Spinner size="sm" class="text-amber-500" />
-          <span class="text-sm text-zinc-400">Running tests…</span>
+          <span class="text-sm text-zinc-400">{runResult?.status === 'pending' ? 'Queued for execution…' : 'Running tests…'}</span>
         </div>
       {:else if runResult}
-        {#each runResult.results as r}
+        {#each runResult.results as r (`${runResult.id}:${r.id}`)}
           <div class="flex items-start gap-3 px-3 py-2.5 border-b border-zinc-50 dark:border-zinc-900 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/60 transition-colors">
             {#if r.status === 'passed'}
               <svg class="size-4 text-emerald-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -74,6 +76,7 @@
               {#if r.errorMessage}
                 <p class="text-xs text-red-600 dark:text-red-400 mt-0.5 font-mono">{r.errorMessage}</p>
               {/if}
+              <RunEvidence result={r} />
             </div>
             <span class="text-xs text-zinc-400 shrink-0 tabular-nums">{fmt(r.durationMs)}</span>
           </div>

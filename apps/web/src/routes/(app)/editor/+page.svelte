@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
+  import { beforeNavigate } from '$app/navigation'
   import { page } from '$app/stores'
   import { api } from '$lib/api'
   import { currentWorkspace } from '$lib/stores/workspace'
-  import { parseAxtest } from '$lib/editor/parse-axtest'
+  import { parseAxtest, serializeAxtest } from '$lib/editor/parse-axtest'
   import { validateAxtest } from '$lib/editor/validate-axtest'
   import { countDiagnostics } from '$lib/editor/axtest-lint'
   import type { Diagnostic } from '@codemirror/lint'
@@ -28,6 +29,11 @@
   import { setTutorialActiveLesson } from '$lib/stores/tutorial'
 
   const savedPanels = loadPanelSizes()
+
+  let runController: AbortController | undefined
+  const parsedContent = $derived(parseAxtest(editorContent))
+  onDestroy(() => runController?.abort())
+  beforeNavigate(({ cancel }) => { if (dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
 
   let projects       = $state<Project[]>([])
   let activeProject  = $state<Project | null>(null)
@@ -87,7 +93,7 @@
 
   const testStatuses = $derived.by(() => {
     if (!runResult) return {} as Record<string, 'passed' | 'failed'>
-    const parsed = visualParsed ?? parseAxtest(editorContent)
+    const parsed = visualParsed ?? parsedContent
     const map: Record<string, 'passed' | 'failed'> = {}
     for (const test of parsed.tests) {
       const r = runResult.results.find(res => res.testName === test.name)
@@ -280,6 +286,7 @@
   }
 
   async function selectProject(project: Project, preferredFilePath?: string | null) {
+    if (running || saving) return
     if (dirty && !(await saveFile())) return
     activeProject = project
     loadingFiles = true
@@ -311,6 +318,7 @@
   }
 
   async function selectFile(file: TestFile) {
+    if (running || saving) return
     if (dirty && activeFile && !(await saveFile())) return
     activeFile = file
     editorContent = file.content
@@ -363,22 +371,24 @@
     if (!activeProject || !activeFile) return
     await withEnvironmentReady(async () => {
       if (dirty && !(await saveFile())) return
+      runController = new AbortController()
       running = true
       resultsOpen = true
       runResult = null
+      const runFileId = activeFile!.id
       try {
         const result = await api().runFile(activeProject!.id, {
           fileId: activeFile!.id,
           fileName: activeFile!.name,
           content: editorContent,
           environment,
-        })
+        }, { signal: runController?.signal, onProgress: result => { runResult = result } })
         runResult = result
         const status: FileRunStatus =
-          result.failedTests === 0 ? 'passed'
+          result.status === 'passed' ? 'passed'
           : result.passedTests === 0 ? 'failed'
           : 'partial'
-        fileRunStatus = { ...fileRunStatus, [activeFile!.id]: status }
+        fileRunStatus = { ...fileRunStatus, [runFileId]: status }
       } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
       running = false
     })
@@ -418,19 +428,21 @@
     await withEnvironmentReady(async () => {
       runningTestId = testId
       try {
-        const parsed = visualParsed ?? parseAxtest(editorContent)
+        const parsed = visualParsed ?? parsedContent
         const test = parsed.tests.find(t => t.id === testId)
         if (!test) return
         if (dirty && !(await saveFile())) return
         resultsOpen = true
+        runController = new AbortController()
         running = true
+        runResult = null
         runResult = await api().runFile(activeProject!.id, {
           fileId: activeFile!.id,
           fileName: activeFile!.name,
           content: editorContent,
           environment,
           testNames: [test.name],
-        })
+        }, { signal: runController?.signal, onProgress: result => { runResult = result } })
       } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
       finally { running = false; runningTestId = null }
     })
@@ -440,6 +452,11 @@
     if (!activeProject || !activeFile) return
     generatingTestId = testId
     try {
+      const draft = visualParsed ?? parsedContent
+      if (!draft.tests.some(t => t.id === testId)) throw new Error('Select the test again before generating.')
+      editorContent = serializeAxtest(draft)
+      visualParsed = draft
+      markDirty()
       if (dirty && !(await saveFile())) return
       const res = await api().generateTests(activeProject.id, {
         fileId: activeFile.id,
@@ -568,6 +585,12 @@
   }
 
   onMount(() => {
+    function beforeModeSwitch(event: Event) {
+      if (saving) { feedback = 'Wait for the file to finish saving before switching modes.'; event.preventDefault(); return }
+      if (dirty && !window.confirm('Switch data mode and discard unsaved changes?')) { event.preventDefault(); return }
+      dirty = false
+    }
+    window.addEventListener('axtest:before-mode-switch', beforeModeSwitch)
     function handleKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
@@ -575,7 +598,7 @@
       }
     }
     window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('axtest:before-mode-switch', beforeModeSwitch) }
   })
 </script>
 
@@ -722,7 +745,7 @@
       />
 
       <EditorOutline
-        parsed={mode === 'visual' ? visualParsed : parseAxtest(editorContent)}
+        parsed={mode === 'visual' ? visualParsed : parsedContent}
         {runResult}
         {running}
         {selectedTestId}

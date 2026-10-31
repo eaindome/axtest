@@ -3,6 +3,7 @@
   import { api } from '$lib/api'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
+  import RunEvidence from '$lib/components/editor/RunEvidence.svelte'
   import Badge from '$lib/components/ui/Badge.svelte'
   import Spinner from '$lib/components/ui/Spinner.svelte'
   import type { Project, RunListItem, RunDetail } from '$lib/api'
@@ -135,9 +136,10 @@
           </span>
         </div>
 
+        {#if selectedRun.errorMessage}<p class="error-banner m-4" role="alert">{selectedRun.errorMessage}</p>{/if}
         <!-- Results list -->
         <div class="overflow-y-auto flex-1 divide-y divide-zinc-100 dark:divide-zinc-800">
-          {#each selectedRun.results as result}
+          {#each selectedRun.results as result (`${selectedRun.id}:${result.id}`)}
             <div class="flex items-start gap-3 px-5 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
               <!-- Status icon -->
               <div class="mt-0.5 shrink-0">
@@ -164,6 +166,7 @@
                 {#if result.failedStep}
                   <p class="text-xs text-zinc-400 mt-0.5">at: <code class="font-mono">{result.failedStep}</code></p>
                 {/if}
+                <RunEvidence {result} />
               </div>
 
               <span class="text-xs text-zinc-400 shrink-0 tabular-nums">{fmt(result.durationMs)}</span>
