@@ -46,3 +46,11 @@ Thumbs.db
 # Local app settings
 **/appsettings.local.json
 **/appsettings.*.local.json
+
+# Local backend tooling and run artifacts
+.tools/
+apps/api/.runs/
+
+# Python smoke-test caches
+__pycache__/
+*.pyc
