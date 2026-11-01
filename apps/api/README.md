@@ -1,5 +1,13 @@
 # Backend development
 
+## Saved test accounts and suite runs
+
+`GET/POST /api/projects/{projectId}/test-accounts` lists safe metadata or saves a named target-account profile; DELETE by account GUID removes it. Values are protected using ASP.NET Data Protection with a project/environment/account-specific purpose. Responses never include decrypted values or protected payloads. Preserve the server's Data Protection key ring across deployments; use a protected shared key store for replicas. Trust project writers with the accounts they can execute tests against. Viewer roles cannot modify accounts or submit runs.
+
+`POST /api/projects/{projectId}/runs/batch` accepts an environment, selected files/test names, optional accountId and headed flag. The API validates the full selection, required inputs and scope before adding any jobs. It filters account inputs per suite, generates a fresh AXTEST_CASE when needed, and puts credentials only into the ephemeral run-input vault. Persisted snapshots contain no profile values. All accepted jobs survive page navigation; secret-bearing jobs still require resubmission after an API restart before their input is claimed. Their source and result records remain durable. Browser execution retains the local Development and loopback restrictions.
+
+The `SavedTestAccounts` migration adds only the encrypted-profile table. Existing projects, tests, memberships and runs are preserved.
+
 The API owns PostgreSQL persistence; the Node worker in `packages/core` owns parsing and Playwright execution. The web application preserves its mock/API switch. API mode uses real username/password authentication; see `apps/web/README.md`.
 
 ## Start locally
@@ -72,3 +80,5 @@ node tests/worker_protocol.cjs
 ```
 
 Frontend integration uses cookie sessions, shared authoring utilities, HTTP 202/polling and screenshot previews. `python tests/auth_security.py` verifies live authentication, CSRF, revocation, tenant isolation and role restrictions using isolated `authcheck_` accounts. Their dedicated workspaces remain for inspection; verification projects are removed. See `tests/self/README.md` for axtest's own browser suite.
+
+Project lifecycle: projects expose `archivedAt`. POST `api/workspaces/{workspaceId}/projects/{id}/archive` preserves data and rejects active runs; `/restore` reactivates it. Run submission and lifecycle changes serialize on the project row. Archived projects reject new runs, and DELETE requires prior archiving.

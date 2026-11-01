@@ -1,5 +1,17 @@
 # Frontend integration
 
+## Suite workspace
+
+Open **Projects**, then select the application. Projects open on **Configuration**, followed by **Test suites** and **Run history**. Existing `/suites?project=…` links redirect to the project suite workspace. Each saved file containing TEST cases is a suite; reusable AUTH/MODULE flows are excluded from selection. Select individual tests or whole suites. The workspace remembers the project, environment, per-environment account choices and test selection for the signed-in user and data mode. Edit links open the existing authoring tools.
+
+**Configuration** configures the selected URL and saves named test accounts. API-mode values are encrypted at rest using ASP.NET Data Protection and are never returned to the frontend. Local storage contains only account IDs, selections and run metadata. Accounts are bound to the project, environment and URL. After changing a URL, save a new account for it. Mock accounts remain session-only metadata.
+
+**Run selected** submits all chosen files as one validated batch; **Watch selected** uses visible Chromium on the API computer. No per-run credential dialog is required. Required dependencies are included, and `AXTEST_CASE` gets a fresh value per suite run. Results, errors, steps and available screenshots appear beside the selection. **Rerun failed** selects failed tests and includes their prerequisites. Refresh resumes polling the submitted IDs, and leaving the page does not stop the queued jobs. **Debug** is deliberately unavailable until breakpoint/pause/step controls are implemented.
+
+Projects can be archived from their actions menu. Archived projects are hidden from the Active list, retain their data, and reject new runs. The Archived filter offers Restore and confirmed permanent deletion.
+
+Verification: `node tests/project_workspace.cjs` covers the real API configuration, account handoff, archive/restore/deletion, and role/tenant isolation. `node tests/suite_workspace.cjs` covers saved setup, selection, multi-file execution, Watch, refresh, evidence, failed-case reruns and mock isolation. `python tests/suite_security.py` covers API account isolation and atomic batch validation.
+
 The data switch in development selects **Mock** or **API** mode. Its choice survives refreshes. Mock mode uses the local demo data; API mode uses the ASP.NET backend and PostgreSQL. Switching mode reloads the workspace, and authentication, workspace selection, and tutorial state are stored separately for each mode.
 
 ## Start
