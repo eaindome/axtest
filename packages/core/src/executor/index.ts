@@ -75,7 +75,8 @@ export async function executeFile(
         : chromium
   const browser = await browserType.launch({
     headless: !options.headed,
-    slowMo: options.headed ? 150 : 0,
+    slowMo: options.headed ? 400 : 0,
+    ...(options.headed && cfg.browser === 'chromium' ? { args: ['--start-maximized'] } : {}),
     executablePath: cfg.browserExecutablePath ?? undefined,
   })
 
@@ -149,9 +150,17 @@ async function executeTest(
   const steps: StepResult[] = []
 
   // Fresh browser context per test
-  const context = await browser.newContext()
+  const context = await browser.newContext(options.headed ? { viewport: null } : {})
   const page = await context.newPage()
+  if (options.headed) await page.bringToFront()
   page.setDefaultTimeout(config.timeout)
+  async function closeContext() {
+    // Short visible tests should not open and disappear before they can be seen.
+    const remaining = 4000 - (Date.now() - startTime)
+    if (options.headed && remaining > 0 && !options.signal?.aborted)
+      await new Promise(resolve => setTimeout(resolve, remaining))
+    await context.close()
+  }
 
   try {
     if (!test.stepGroups.some((g) => g.assertions.length))
@@ -220,7 +229,7 @@ async function executeTest(
       await runAssertionList(page, group.assertions, steps, config, options)
     }
 
-    await context.close()
+    await closeContext()
     return {
       id: test.id,
       description: test.description,
@@ -265,7 +274,7 @@ async function executeTest(
       })
     }
 
-    await context.close()
+    await closeContext()
     return {
       id: test.id,
       description: test.description,
