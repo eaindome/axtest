@@ -95,6 +95,9 @@ namespace Axtest.Api.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("BaseUrl")
                         .HasColumnType("text");
 
@@ -192,6 +195,48 @@ namespace Axtest.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectFiles");
+                });
+
+            modelBuilder.Entity("Axtest.Api.Models.ProjectTestAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<long>("ProjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ProtectedValues")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VariableNamesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Environment", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTestAccounts");
                 });
 
             modelBuilder.Entity("Axtest.Api.Models.TestResult", b =>
@@ -511,6 +556,17 @@ namespace Axtest.Api.Migrations
                 });
 
             modelBuilder.Entity("Axtest.Api.Models.ProjectFile", b =>
+                {
+                    b.HasOne("Axtest.Api.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Axtest.Api.Models.ProjectTestAccount", b =>
                 {
                     b.HasOne("Axtest.Api.Models.Project", "Project")
                         .WithMany()

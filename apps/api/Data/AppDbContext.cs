@@ -5,6 +5,7 @@ namespace Axtest.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<ProjectTestAccount> ProjectTestAccounts => Set<ProjectTestAccount>();
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<User> Users => Set<User>();
@@ -20,6 +21,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<ProjectTestAccount>(e => {
+            e.HasIndex(a => new { a.ProjectId, a.Environment, a.Name }).IsUnique();
+            e.Property(a => a.Name).HasMaxLength(80);
+            e.Property(a => a.Environment).HasMaxLength(20);
+            e.HasOne(a => a.Project).WithMany().HasForeignKey(a => a.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
         model.Entity<Project>().HasIndex(p => p.WorkspaceId).IsUnique().HasFilter("\"IsTutorialSandbox\" = true").HasDatabaseName("IX_Projects_Workspace_TutorialSandbox");
         model.Entity<TestRun>().HasIndex(r => new { r.Status, r.Id });
         model.Entity<ProjectFile>(e =>
