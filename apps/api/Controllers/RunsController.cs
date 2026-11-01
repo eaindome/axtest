@@ -10,13 +10,15 @@ using Microsoft.EntityFrameworkCore;
 namespace Axtest.Api.Controllers;
 
 [ApiController, Authorize, Route("api/projects/{projectId:long}/runs")]
-public class RunsController(AppDbContext db, ProjectAccess access, ExplorerService explorer, RunnerProcess runner, RunInputs inputs, IHostEnvironment host, IConfiguration config) : ControllerBase
+public class RunsController(AppDbContext db, ProjectAccess access, ExplorerService explorer, RunnerProcess runner, RunInputs inputs, TestAccountSecrets accounts, IHostEnvironment host, IConfiguration config) : ControllerBase
 {
     [HttpPost("file")]
     public async Task<IActionResult> RunFile(long projectId, RunFileRequest req, [FromQuery] bool wait = true)
     {
-        var project = await access.Get(projectId, true);
+        await using var submission = await access.Lock(projectId);
+        var project = await access.Get(projectId, true, allowArchived: true);
         if (project is null) return NotFound();
+        if (project.ArchivedAt is not null) return Conflict("Restore this project before starting a run.");
         if (req.Variables is { } variables && (variables.Count > 32 || variables.Any(v =>
             !System.Text.RegularExpressions.Regex.IsMatch(v.Key, @"^AXTEST_[A-Z0-9_]{1,64}$") || v.Value is null || v.Value.Length > 4096)
             || variables.Sum(v => v.Value?.Length ?? 0) > 16384))
@@ -55,6 +57,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         db.TestRuns.Add(run);
         try { await db.SaveChangesAsync(); }
         catch { if (runtimeKey is not null) inputs.Remove(runtimeKey); throw; }
+        await submission.CommitAsync();
         if (wait)
         {
             var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(config.GetValue("Runner:TimeoutSeconds", 120), 5, 300) + 10);
@@ -69,10 +72,60 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         return Accepted(await Detail(projectId, run));
     }
 
+    [HttpPost("batch")]
+    public async Task<IActionResult> RunSuites(long projectId, RunSuitesRequest req)
+    {
+        await using var submission = await access.Lock(projectId);
+        var project = await access.Get(projectId, true, allowArchived: true);
+        if (project is null) return NotFound();
+        if (project.ArchivedAt is not null) return Conflict("Restore this project before starting a run.");
+        if (!host.IsDevelopment() || !config.GetValue("Runner:Enabled", host.IsDevelopment())) return StatusCode(503, "Browser execution requires local Development until runner isolation is configured.");
+        if (HttpContext.Connection.RemoteIpAddress is not { } remote || !System.Net.IPAddress.IsLoopback(remote)) return StatusCode(403, "Browser execution requires a connection from this machine.");
+        if (req.Files.Count is < 1 or > 30 || req.Files.Any(f => f is null) || req.Files.Select(f => f.FileId).Distinct().Count() != req.Files.Count) return BadRequest("Choose 1–30 different suite files.");
+        if (await db.TestRuns.CountAsync(r => r.Status == RunStatus.Pending || r.Status == RunStatus.Running) + req.Files.Count > 30) return StatusCode(429, "The run queue is full. Try again after current runs finish.");
+        var url = await accounts.Url(project, req.Environment);
+        var values = await accounts.Resolve(projectId, req.Environment, url, req.AccountId, req.Variables);
+        var sources = await db.ProjectFiles.Where(f => f.ProjectId == projectId && !f.IsFolder).ToListAsync();
+        var reusable = sources.Where(f => f.Path.StartsWith("auth/") || f.Path.StartsWith("modules/")).Select(f => new { path = f.Path, content = f.Content }).ToList();
+        var pending = new List<(TestRun Run, Dictionary<string, string> Values, object Validation, string Content)>();
+        foreach (var choice in req.Files) {
+            var file = sources.FirstOrDefault(f => f.Id == choice.FileId);
+            if (file is null) return NotFound("A selected suite does not belong to this project.");
+            if (choice.TestNames is { Length: 0 }) return BadRequest("Select at least one test in each suite.");
+            if (!System.Text.RegularExpressions.Regex.IsMatch(file.Content, @"(?m)^\s*TEST\s+")) return BadRequest("Reusable flows are not suites. Select a file containing TEST cases.");
+            var validation = await runner.Invoke(new { command = "validate", content = file.Content, fileName = file.Path, testNames = choice.TestNames, files = reusable }, cancellation: HttpContext.RequestAborted);
+            var count = validation.GetProperty("testCount").GetInt32();
+            if (count > 500) return BadRequest("At most 500 tests can be submitted per suite.");
+            var needed = validation.GetProperty("requiredVariables").EnumerateArray().Select(v => v.GetString()!).ToArray();
+            var runValues = values.Where(pair => needed.Contains(pair.Key)).ToDictionary();
+            if (needed.Contains("AXTEST_CASE") && !runValues.ContainsKey("AXTEST_CASE")) runValues["AXTEST_CASE"] = "suite-" + Guid.NewGuid().ToString("N")[..12];
+            var missing = needed.Where(name => !runValues.ContainsKey(name) || string.IsNullOrEmpty(runValues[name])).ToArray();
+            if (missing.Length > 0) return BadRequest($"Configure the selected test account with: {string.Join(", ", missing)}.");
+            pending.Add((new TestRun { ProjectId = projectId, FileId = file.Id, FileName = file.Path, Environment = req.Environment, TriggeredBy = "suite", TotalTests = count }, runValues, validation.GetProperty("selectedTests").Clone(), file.Content));
+        }
+        // Validate the entire selection before storing jobs or any ephemeral inputs.
+        var keys = new List<string>();
+        try {
+            foreach (var item in pending) {
+                var runtimeKey = item.Values.Count > 0 ? inputs.Store(item.Values) : null;
+                if (runtimeKey is not null) keys.Add(runtimeKey);
+                item.Run.InputJson = JsonSerializer.Serialize(new { command = "run", content = item.Content, fileName = item.Run.FileName, baseUrl = url, files = reusable,
+                    testNames = req.Files.Single(f => f.FileId == item.Run.FileId).TestNames, selectedTests = item.Validation, runtimeKey, headed = req.Headed });
+                db.TestRuns.Add(item.Run);
+            }
+            await db.SaveChangesAsync();
+        } catch { foreach (var key in keys) inputs.Remove(key); throw; }
+        await submission.CommitAsync();
+        return Accepted(pending.Select(item => ListDto(item.Run)));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Submit(long projectId, SubmitRunRequest req)
     {
-        if (await access.Get(projectId, true) is null) return NotFound();
+        await using var submission = await access.Lock(projectId);
+        var project = await access.Get(projectId, true, allowArchived: true);
+        if (project is null) return NotFound();
+        if (project.ArchivedAt is not null) return Conflict("Restore this project before submitting a run.");
         if (req.Results is null || req.TotalTests < 1 || req.TotalTests != req.Results.Count || req.Results.Any(r => r.Status is not ("passed" or "failed" or "skipped") || r.DurationMs < 0)
             || req.PassedTests != req.Results.Count(r => r.Status == "passed") || req.FailedTests != req.Results.Count(r => r.Status == "failed") || req.DurationMs < 0 || req.CompletedAt < req.StartedAt)
             return BadRequest("Run totals, status values, or timestamps are inconsistent.");
@@ -102,6 +155,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
             Order = i + 1
         }).ToList();
         db.TestRuns.Add(run); await db.SaveChangesAsync();
+        await submission.CommitAsync();
         return CreatedAtAction(nameof(Get), new { projectId, id = run.Id }, ListDto(run));
     }
     [HttpGet]

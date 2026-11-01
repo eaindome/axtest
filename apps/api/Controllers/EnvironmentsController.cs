@@ -28,6 +28,7 @@ public class EnvironmentsController(AppDbContext db) : ControllerBase
     {
         var project = await GetProjectIfMember(projectId);
         if (project is null) return NotFound();
+        if (!HttpMethods.IsGet(Request.Method) && project.ArchivedAt is not null) return Conflict("Restore this project before editing environments.");
 
         var overrides = await db.ProjectEnvironments
             .Where(e => e.ProjectId == projectId)
@@ -44,6 +45,7 @@ public class EnvironmentsController(AppDbContext db) : ControllerBase
 
         var project = await GetProjectIfMember(projectId);
         if (project is null) return NotFound();
+        if (!HttpMethods.IsGet(Request.Method) && project.ArchivedAt is not null) return Conflict("Restore this project before editing environments.");
 
         if (!req.UseProductionFallback && string.IsNullOrWhiteSpace(req.BaseUrl))
             return BadRequest("Provide a base URL or set UseProductionFallback to true.");
@@ -84,6 +86,7 @@ public class EnvironmentsController(AppDbContext db) : ControllerBase
 
         var project = await GetProjectIfMember(projectId);
         if (project is null) return NotFound();
+        if (!HttpMethods.IsGet(Request.Method) && project.ArchivedAt is not null) return Conflict("Restore this project before editing environments.");
 
         var env = await db.ProjectEnvironments
             .FirstOrDefaultAsync(e => e.ProjectId == projectId && e.Name == name);
