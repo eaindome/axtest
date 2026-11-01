@@ -9,5 +9,5 @@ public record MoveFileRequest(string? Folder);
 public record MoveFolderRequest(string Path, string? TargetFolder);
 public record RenameFolderRequest(string Path, string Name);
 public record GenerateRequest(Guid FileId, string Content, string SeedTestId);
-public record RunFileRequest(Guid FileId, string? FileName, string Content, string Environment, string[]? TestNames);
+public record RunFileRequest(Guid FileId, string? FileName, string Content, string Environment, string[]? TestNames, Dictionary<string, string>? Variables = null);
 public record ResetLessonRequest(string LessonId);
