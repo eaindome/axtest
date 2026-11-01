@@ -6,6 +6,7 @@ namespace Axtest.Api.Data;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
@@ -31,6 +32,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         model.Entity<User>(e =>
         {
             e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Username).HasMaxLength(32);
+            e.HasIndex(u => u.Username).IsUnique();
+        });
+
+        model.Entity<UserSession>(e => {
+            e.Property(s => s.Id).HasMaxLength(64);
+            e.HasIndex(s => s.ExpiresAt);
+            e.HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         model.Entity<Workspace>(e =>
