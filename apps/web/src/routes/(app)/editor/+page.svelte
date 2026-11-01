@@ -34,14 +34,16 @@
 
   let runController: AbortController | undefined
   let inputNames = $state<string[]>([])
-  let resolveInputs: ((values: Record<string, string> | null) => void) | null = null
-  function finishInputs(values: Record<string, string> | null) {
-    inputNames = []; resolveInputs?.(values); resolveInputs = null
+  let runSetupOpen = $state(false)
+  type RunSetup = { variables: Record<string, string>; headed: boolean }
+  let resolveInputs: ((values: RunSetup | null) => void) | null = null
+  function finishInputs(values: Record<string, string> | null, headed = false) {
+    runSetupOpen = false; inputNames = []; resolveInputs?.(values === null ? null : { variables: values, headed }); resolveInputs = null
   }
-  function requestInputs(): Promise<Record<string, string> | null> {
+  function requestInputs(): Promise<RunSetup | null> {
     const names = runInputNames(editorContent, files)
-    if (!names.length) return Promise.resolve({})
     inputNames = names
+    runSetupOpen = true
     return new Promise(resolve => { resolveInputs = resolve })
   }
   onDestroy(() => finishInputs(null))
@@ -72,7 +74,7 @@
   let projectEnvironments = $state<ProjectEnvironment[]>([])
   let envModalOpen = $state(false)
   let envModalMode = $state<'setup' | 'edit'>('setup')
-  let envModalEnvironment = $state<'staging' | 'local'>('staging')
+  let envModalEnvironment = $state<EnvironmentName>('staging')
   let pendingRunAfterEnv = $state<(() => Promise<void>) | null>(null)
   let visualParsed   = $state<ParsedFile | null>(null)
   let selectedTestId = $state<string | null>(null)
@@ -179,7 +181,7 @@
     }
   }
 
-  function openEnvModal(mode: 'setup' | 'edit', env: 'staging' | 'local') {
+  function openEnvModal(mode: 'setup' | 'edit', env: EnvironmentName) {
     envModalEnvironment = env
     envModalMode = mode
     envModalOpen = true
@@ -215,14 +217,18 @@
   }
 
   function openEditEnvironmentModal() {
-    if (!isOverridableEnv(environment)) return
     openEnvModal(environmentNeedsSetup ? 'setup' : 'edit', environment)
   }
 
   async function saveEnvironmentUrl(url: string) {
     if (!activeProject) return
     await finishEnvModal(async () => {
-      projectEnvironments = await api().upsertEnvironment(activeProject!.id, envModalEnvironment, {
+      if (envModalEnvironment === 'production') {
+        const project = activeProject!
+        const updated = await api().updateProject($currentWorkspace!.id, project.id, { name: project.name, baseUrl: url, description: project.description ?? undefined })
+        activeProject = updated
+        projects = projects.map(project => project.id === updated.id ? updated : project)
+      } else projectEnvironments = await api().upsertEnvironment(activeProject!.id, envModalEnvironment, {
         baseUrl: url,
         useProductionFallback: false,
       })
@@ -231,8 +237,10 @@
 
   async function useProductionForEnvironment() {
     if (!activeProject) return
+    const selectedEnvironment = envModalEnvironment
+    if (selectedEnvironment === 'production') return
     await finishEnvModal(async () => {
-      projectEnvironments = await api().upsertEnvironment(activeProject!.id, envModalEnvironment, {
+      projectEnvironments = await api().upsertEnvironment(activeProject!.id, selectedEnvironment, {
         useProductionFallback: true,
       })
     })
@@ -240,8 +248,10 @@
 
   async function deleteEnvironmentOverride() {
     if (!activeProject) return
+    const selectedEnvironment = envModalEnvironment
+    if (selectedEnvironment === 'production') return
     await finishEnvModal(async () => {
-      projectEnvironments = await api().deleteEnvironment(activeProject!.id, envModalEnvironment)
+      projectEnvironments = await api().deleteEnvironment(activeProject!.id, selectedEnvironment)
     })
   }
 
@@ -391,8 +401,8 @@
     if (!activeProject || !activeFile) return
     await withEnvironmentReady(async () => {
       if (dirty && !(await saveFile())) return
-      const variables = await requestInputs()
-      if (variables === null) return
+      const setup = await requestInputs()
+      if (setup === null) return
       runController = new AbortController()
       running = true
       resultsOpen = true
@@ -404,7 +414,7 @@
           fileName: activeFile!.name,
           content: editorContent,
           environment,
-          variables,
+          ...setup,
         }, { signal: runController?.signal, onProgress: result => { runResult = result } })
         runResult = result
         const status: FileRunStatus =
@@ -455,8 +465,8 @@
         const test = parsed.tests.find(t => t.id === testId)
         if (!test) return
         if (dirty && !(await saveFile())) return
-        const variables = await requestInputs()
-        if (variables === null) return
+        const setup = await requestInputs()
+        if (setup === null) return
         resultsOpen = true
         runController = new AbortController()
         running = true
@@ -467,7 +477,7 @@
           content: editorContent,
           environment,
           testNames: [test.name],
-          variables,
+          ...setup,
         }, { signal: runController?.signal, onProgress: result => { runResult = result } })
       } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
       finally { running = false; runningTestId = null }
@@ -612,7 +622,7 @@
 
   onMount(() => {
     function beforeModeSwitch(event: Event) {
-      if (saving || running || inputNames.length) { feedback = 'Finish or cancel the current run before switching context.'; event.preventDefault(); return }
+      if (saving || running || runSetupOpen) { feedback = 'Finish or cancel the current run before switching context.'; event.preventDefault(); return }
       if (dirty && !window.confirm('Switch context and discard unsaved changes?')) { event.preventDefault(); return }
       dirty = false
     }
@@ -633,8 +643,8 @@
 </script>
 
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
-  {#if inputNames.length}<RunInputsPanel names={inputNames} onSubmit={values => finishInputs(values)} onCancel={() => finishInputs(null)} />{/if}
-  <div class="contents" inert={inputNames.length > 0}>
+  {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} onSubmit={(values, headed) => finishInputs(values, headed)} onCancel={() => finishInputs(null)} />{/if}
+  <div class="contents" inert={runSetupOpen}>
 
   {#if lessonBooting}
     <div class="flex-1 flex items-center justify-center">
@@ -675,11 +685,11 @@
     environment={envModalEnvironment}
     project={activeProject}
     mode={envModalMode}
-    currentUrl={envModalConfig?.baseUrl}
+    currentUrl={envModalEnvironment === 'production' ? activeProject?.baseUrl : envModalConfig?.baseUrl}
     useProductionFallback={envModalConfig?.useProductionFallback ?? false}
     onSave={saveEnvironmentUrl}
     onUseProduction={useProductionForEnvironment}
-    onDelete={envModalMode === 'edit' ? deleteEnvironmentOverride : undefined}
+    onDelete={envModalMode === 'edit' && envModalEnvironment !== 'production' ? deleteEnvironmentOverride : undefined}
     onCancel={closeEnvModal}
   />
 
