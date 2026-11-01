@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Axtest.Api.Services;
 
 // One API instance owns the local worker. PostgreSQL row locking also prevents duplicate claims.
-public class RunWorker(IServiceScopeFactory scopes, RunnerProcess runner, ILogger<RunWorker> logger) : BackgroundService
+public class RunWorker(IServiceScopeFactory scopes, RunnerProcess runner, RunInputs inputs, ILogger<RunWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -49,6 +49,8 @@ public class RunWorker(IServiceScopeFactory scopes, RunnerProcess runner, ILogge
         try
         {
             var input = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(run.InputJson!)!;
+            if (input.Remove("runtimeKey", out var key) && key.ValueKind == JsonValueKind.String)
+                input["variables"] = JsonSerializer.SerializeToElement(inputs.Take(key.GetString()!));
             var directory = Path.Combine(runner.ArtifactRoot, run.Id.ToString());
             input["browserExecutablePath"] = JsonSerializer.SerializeToElement(runner.BrowserExecutablePath);
             input["timeoutMs"] = JsonSerializer.SerializeToElement(runner.TimeoutMilliseconds);
