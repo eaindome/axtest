@@ -1,0 +1,7 @@
+# SvelteKit and deployment output
+.svelte-kit/
+build/
+.output/
+.vercel/
+.netlify/
+.wrangler/

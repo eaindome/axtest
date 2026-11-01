@@ -1,0 +1,8 @@
+# Machine-specific configuration. Commit examples, never working credentials.
+appsettings.*.json
+!appsettings.*.example.json
+appsettings.local.json
+
+# Local runner output and publish artifacts
+.runs/
+publish/
