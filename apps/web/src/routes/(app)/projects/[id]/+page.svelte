@@ -1,199 +1,149 @@
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { untrack, onDestroy } from 'svelte'
   import { page } from '$app/stores'
   import { api } from '$lib/api'
+  import type { Project, ProjectEnvironment, TestAccount, TestFile, EnvironmentName } from '$lib/api/types'
   import { currentWorkspace } from '$lib/stores/workspace'
+  import { authStore } from '$lib/stores/auth'
+  import { modeKey, useMock } from '$lib/stores/dev'
   import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
-  import RunEvidence from '$lib/components/editor/RunEvidence.svelte'
-  import Badge from '$lib/components/ui/Badge.svelte'
+  import { globalProjects } from '$lib/stores/search'
+  import ProjectNavigation from '$lib/components/layout/ProjectNavigation.svelte'
+  import Input from '$lib/components/ui/Input.svelte'
+  import Button from '$lib/components/ui/Button.svelte'
   import Spinner from '$lib/components/ui/Spinner.svelte'
-  import type { Project, RunListItem, RunDetail } from '$lib/api'
+  import { discoverSuites, selectedInputNames, normalizedUrl } from '$lib/suites'
+  import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
 
   const projectId = $derived(Number($page.params.id))
-
-  let project      = $state<Project | null>(null)
-  let runs         = $state<RunListItem[]>([])
-  let selectedRun  = $state<RunDetail | null>(null)
-  let loading      = $state(true)
-  let loadingRun   = $state(false)
-  let error = $state('')
-
-  $effect(() => {
-    const ws = $currentWorkspace
-    const id = projectId
-    if (ws && id) untrack(() => void load(ws.id, id))
+  let project = $state<Project | null>(null), environments = $state<ProjectEnvironment[]>([]), accounts = $state<TestAccount[]>([]), files = $state<TestFile[]>([])
+  let loading = $state(true), saving = $state(false), error = $state(''), message = $state('')
+  let environment = $state<EnvironmentName>('production'), url = $state(''), fallback = $state(false)
+  let accountName = $state(''), accountValues = $state<Record<string, string>>({})
+  let version = 0
+  onDestroy(() => { version++ })
+  const effectiveUrl = $derived(resolveEffectiveUrl(environment, project, environments))
+  const environmentReady = $derived(!!effectiveUrl && (environment === 'production' || !!environments.find(item => item.name === environment)?.configured))
+  const loginFlows = $derived(files.filter(file => /^\s*AUTH\s+/m.test(file.content)))
+  const hasTests = $derived(files.some(file => /^\s*TEST\s+/m.test(file.content)))
+  const accountFields = $derived.by(() => {
+    const selection = Object.fromEntries(discoverSuites(files).map(file => [file.id, file.parsed.tests.map(test => test.name)]))
+    return Array.from(new Set(['AXTEST_USERNAME', 'AXTEST_PASSWORD', ...selectedInputNames(files, selection)]))
   })
-
-  let loadVersion = 0
-  let detailVersion = 0
+  const readOnly = $derived(!!project?.archivedAt)
+  const control = 'h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-zinc-800 dark:text-zinc-100'
+  function key() { return modeKey(`suites:${$authStore.user?.id}:${$currentWorkspace?.id}:${projectId}`) }
+  function preferences() { try { return JSON.parse(localStorage.getItem(key()) ?? '{}') } catch { return {} } }
+  function remember(accountId?: string) {
+    const previous = preferences()
+    localStorage.setItem(key(), JSON.stringify({ ...previous, environment, ...(accountId ? { accountId, accountChoices: { ...previous.accountChoices, [environment]: accountId } } : {}) }))
+  }
+  $effect(() => { const ws = $currentWorkspace; const id = projectId; if (ws) untrack(() => void load(ws.id, id)) })
   $effect(() => {
-    const workspaceId = $currentWorkspace?.id
-    const id = projectId
-    if (!workspaceId || !runs.some(r => r.status === 'pending' || r.status === 'running')) return
-    const timer = setTimeout(() => void load(workspaceId, id, true), 1500)
-    return () => clearTimeout(timer)
-  })
-  async function load(workspaceId: number, id: number, refresh = false) {
-    const version = ++loadVersion
-    if (!refresh) { loading = true; project = null; selectedRun = null; runs = []; detailVersion++ }
-    error = ''
-    try {
-      const [projs, runList] = await Promise.all([api().getProjects(workspaceId), api().getRuns(id)])
-      if (version !== loadVersion) return
-      project = projs.find(p => p.id === id) ?? null
-      runs = runList
-      if (refresh && selectedRun && (selectedRun.status === 'pending' || selectedRun.status === 'running')) {
-        const selectedId = selectedRun.id
-        const updated = await api().getRun(id, selectedId)
-        if (version === loadVersion && selectedRun?.id === selectedId) selectedRun = updated
-      }
-    } catch { if (version === loadVersion) error = 'We couldn’t load this project’s run history. Please try again.' }
-    finally { if (version === loadVersion) loading = false }
-  }
-  async function selectRun(run: RunListItem) {
-    const version = ++detailVersion
-    if (selectedRun?.id === run.id) { selectedRun = null; loadingRun = false; return }
-    loadingRun = true
-    error = ''
-    const id = projectId
-    try {
-      const detail = await api().getRun(id, run.id)
-      if (version === detailVersion && id === projectId) selectedRun = detail
-    } catch { if (version === detailVersion) error = 'We couldn’t load the selected run. Please try again.' }
-    finally { if (version === detailVersion) loadingRun = false }
-  }
-
-  function fmt(ms: number) {
-    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
-  }
-
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-    })
-  }
-
-  function statusVariant(s: string): 'pass' | 'fail' | 'pending' | 'running' {
-    return ({ passed: 'pass', failed: 'fail', pending: 'pending', running: 'running' } as const)[s] ?? 'pending'
-  }
-
-  $effect(() => {
-    pageTitle.set(project?.name ?? 'Project')
-    pageSubtitle.set(project?.baseUrl ?? '')
-    pageAction.set(null)
+    pageTitle.set(project?.name ?? 'Project'); pageSubtitle.set('Configuration'); pageAction.set(null)
     return () => { pageTitle.set(''); pageSubtitle.set(''); pageAction.set(null) }
   })
+  async function load(workspaceId: number, id: number) {
+    const current = ++version
+    loading = true; error = ''; message = ''; project = null; files = []; environments = []; accounts = []; accountValues = {}; accountName = ''
+    try {
+      const list = await api().getProjects(workspaceId)
+      if (current !== version) return
+      const selected = list.find(item => item.id === id)
+      if (!selected) throw new Error('This project is not available in the current workspace.')
+      project = selected; globalProjects.set(list.filter(item => !item.archivedAt))
+      const [envs, saved, explorer] = await Promise.all([api().getEnvironments(id), api().getTestAccounts(id), api().getExplorer(id)])
+      if (current !== version) return
+      environments = envs; accounts = saved; files = explorer.files
+      const preferred = preferences().environment
+      chooseEnvironment(['production', 'staging', 'local'].includes(preferred) ? preferred : 'production')
+    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not load project configuration.' }
+    finally { if (current === version) loading = false }
+  }
+  function chooseEnvironment(value: EnvironmentName) {
+    environment = value
+    const selected = environments.find(item => item.name === value)
+    url = value === 'production' ? project?.baseUrl ?? '' : selected?.baseUrl ?? ''
+    fallback = selected?.useProductionFallback ?? false
+    accountValues = {}; accountName = ''; message = ''; error = ''; remember()
+  }
+  async function saveEnvironment() {
+    if (!project || !$currentWorkspace || readOnly || saving) return
+    const current = version, selectedId = projectId, selectedEnvironment = environment
+    saving = true; error = ''; message = ''
+    try {
+      if (selectedEnvironment === 'production') {
+        const updated = await api().updateProject($currentWorkspace.id, selectedId, { name: project.name, baseUrl: url.trim(), description: project.description ?? undefined })
+        if (current !== version) return
+        project = updated
+      } else await api().upsertEnvironment(selectedId, selectedEnvironment, { baseUrl: url.trim(), useProductionFallback: fallback })
+      const envs = await api().getEnvironments(selectedId)
+      if (current !== version) return
+      environments = envs; message = 'Environment saved.'; remember()
+    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save this environment.' }
+    finally { saving = false }
+  }
+  async function saveAccount() {
+    if (!project || readOnly || saving) return
+    const current = version
+    saving = true; error = ''; message = ''
+    try {
+      const values = Object.fromEntries(Object.entries(accountValues).filter(([, value]) => value.length))
+      const saved = await api().saveTestAccount(project.id, { name: accountName.trim(), environment, variables: values })
+      if (current !== version) return
+      accounts = [...accounts, saved]; accountName = ''; accountValues = {}; remember(saved.id); message = 'Test account saved and selected for this environment.'
+    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save the test account.' }
+    finally { saving = false; accountValues = {} }
+  }
+  async function removeAccount(account: TestAccount) {
+    if (!project || readOnly || !confirm(`Delete the saved test account ${account.name}?`)) return
+    const current = version
+    saving = true; error = ''
+    try {
+      await api().deleteTestAccount(project.id, account.id)
+      if (current !== version) return
+      accounts = accounts.filter(item => item.id !== account.id); message = 'Test account deleted.'
+    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not delete the test account.' }
+    finally { saving = false }
+  }
 </script>
 
-
-{#if error}<div class="error-banner m-4" role="alert">{error}<button class="underline ml-3" onclick={() => $currentWorkspace && load($currentWorkspace.id, projectId)}>Try again</button></div>{/if}
-{#if loading}
-  <div class="flex-1 flex items-center justify-center">
-    <Spinner size="lg" class="text-amber-500" />
-  </div>
-{:else}
-  <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 bg-white dark:bg-zinc-950">
-
-    <!-- Runs list (left panel) -->
-    <div class="w-full md:w-72 max-h-64 md:max-h-none shrink-0 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 flex flex-col overflow-hidden">
-      <div class="px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-        <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Runs</p>
-        <span class="text-xs text-zinc-400">{runs.length}</span>
-      </div>
-
-      <div class="overflow-y-auto flex-1">
-        {#if runs.length === 0}
-          <div class="px-4 py-10 text-center">
-            <p class="text-sm text-zinc-400">No runs yet.</p>
-            <p class="text-xs text-zinc-400 mt-1">Open the editor to write and run your first test.</p>
-          </div>
-        {:else}
-          <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {#each runs as run}
-              <button
-                onclick={() => selectRun(run)}
-                class="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors
-                       {selectedRun?.id === run.id ? 'bg-amber-50 dark:bg-amber-950/30 border-l-[3px] border-amber-500 pl-[13px]' : 'border-l-[3px] border-transparent'}"
-              >
-                <div class="flex items-center gap-2 mb-0.5">
-                  <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
-                  <span class="text-xs text-zinc-400 tabular-nums ml-auto">{fmt(run.durationMs)}</span>
-                </div>
-                <p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{run.suiteName ?? 'Manual Run'}</p>
-                <p class="text-xs text-zinc-400 mt-0.5">{fmtDate(run.startedAt)}</p>
-                <p class="text-xs text-zinc-400">{run.passedTests}/{run.totalTests} passed · {run.environment}</p>
-              </button>
-            {/each}
-          </div>
+<div class="flex-1 overflow-auto bg-zinc-50/80 dark:bg-zinc-950"><div class="page-shell space-y-6">
+  <ProjectNavigation {projectId} name={project?.name} active="configuration" />
+  <div class="flex flex-wrap justify-between items-start gap-4"><div><p class="eyebrow mb-2">Project setup</p><h1 class="page-heading">Configuration</h1><p class="page-description">Connect your application and prepare the accounts your tests will use.</p></div>{#if project && !readOnly}<a class="action-link primary" href={hasTests ? `/projects/${projectId}/suites` : `/editor?project=${projectId}`}>{hasTests ? 'Open test suites' : 'Create your first test'}</a>{/if}</div>
+  {#if error}<p class="error-banner" role="alert">{error}</p>{/if}
+  {#if message}<p class="text-sm text-emerald-700 dark:text-emerald-400" role="status">{message}</p>{/if}
+  {#if loading}<div class="surface p-12 flex items-center justify-center gap-3" role="status"><Spinner size="sm" /><span class="text-sm text-zinc-500">Loading configuration…</span></div>
+  {:else if project}
+    {#if readOnly}<p class="surface p-4 text-sm text-zinc-600 dark:text-zinc-400">This project is archived. Its configuration and history are preserved. Restore it from Projects to edit or run tests.</p>{/if}
+    <div class="grid gap-6 xl:grid-cols-2 items-start">
+      <section class="surface p-5 space-y-5" aria-label="Environment configuration">
+        <div><h2 class="section-heading">Application environments</h2><p class="text-sm text-zinc-500 mt-2">Set the address the runner will open for each environment.</p></div>
+        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Environment<select class={`${control} mt-2 w-full`} aria-label="Configuration environment" value={environment} disabled={saving} onchange={event => chooseEnvironment(event.currentTarget.value as EnvironmentName)}><option value="production">Production</option><option value="staging">Staging</option><option value="local">Local</option></select></label>
+        <form class="space-y-4" onsubmit={event => { event.preventDefault(); saveEnvironment() }}>
+          <Input label="Application URL" type="url" bind:value={url} placeholder="http://localhost:3000" required={!fallback} disabled={readOnly || saving || fallback} />
+          {#if environment !== 'production'}<label class="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400"><input type="checkbox" bind:checked={fallback} disabled={readOnly || saving} class="accent-amber-700" />Use the Production URL</label>{/if}
+          <Button type="submit" variant="secondary" loading={saving} disabled={readOnly}>Save environment</Button>
+        </form>
+        <p class="text-xs text-zinc-500 break-all">{environmentReady ? `Saved address: ${effectiveUrl}` : 'Save an address before configuring accounts or running tests.'}</p>
+      </section>
+      <section class="surface p-5 space-y-4" aria-label="Login configuration">
+        <div><h2 class="section-heading">Reusable login flow</h2><p class="text-sm text-zinc-500 mt-2">A saved account provides credentials. A login flow describes how to enter them and confirm a successful sign-in.</p></div>
+        {#each loginFlows as file}<div class="flex items-center justify-between gap-3 border-t border-zinc-100 dark:border-zinc-800 pt-3"><span class="text-sm text-zinc-700 dark:text-zinc-300 break-all">{file.path}</span>{#if !readOnly}<a class="text-sm font-medium text-amber-700 dark:text-amber-400" href={`/editor?project=${projectId}&file=${encodeURIComponent(file.path)}`}>Edit flow</a>{/if}</div>{:else}<p class="text-sm text-zinc-500">No login flow yet. If your application requires sign-in, create a reusable AUTH flow in the editor and reference it from your suites. Public tests can run without a test account.</p>{/each}
+        {#if !readOnly}<a class="action-link" href={`/editor?project=${projectId}`}>Open editor</a>{/if}
+      </section>
+      <section class="surface p-5 space-y-5 xl:col-span-2" aria-label="Test account configuration">
+        <div><h2 class="section-heading">Application test accounts</h2><p class="text-sm text-zinc-500 mt-2">These accounts sign in to your application. Your Axtest account is separate. Accounts are saved per environment and URL.</p><p class="text-xs text-zinc-500 mt-2">Passwords are encrypted and are never shown again. {$useMock ? 'Mock accounts last for this mock session only.' : ''}</p></div>
+        {#each accounts.filter(item => item.environment === environment) as account}<div class="flex flex-wrap justify-between items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"><div><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{account.name}</p><p class="text-xs text-zinc-500 mt-1">{account.targetUrl === normalizedUrl(effectiveUrl) ? 'Available for this address' : 'Saved for another address; create a new account for the current URL.'}</p></div><button class="text-xs text-red-600 dark:text-red-400" disabled={readOnly || saving} onclick={() => removeAccount(account)}>Delete {account.name}</button></div>{:else}<p class="text-sm text-zinc-500">No test accounts saved for this environment.</p>{/each}
+        {#if !readOnly}
+          <form class="space-y-4 max-w-xl" onsubmit={event => { event.preventDefault(); saveAccount() }}>
+            <h3 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Add a test account</h3>
+            <Input label="Account name" bind:value={accountName} placeholder="QA test account" required disabled={saving || !environmentReady} />
+            {#each accountFields as name}<Input label={name === 'AXTEST_USERNAME' ? 'Username' : name === 'AXTEST_PASSWORD' ? 'Password' : name.replace(/^AXTEST_/, '').replaceAll('_', ' ')} type={/PASSWORD|TOKEN|SECRET|KEY/.test(name) ? 'password' : 'text'} bind:value={() => accountValues[name] ?? '', value => { accountValues[name] = value }} autocomplete="off" disabled={saving || !environmentReady} />{/each}
+            <Button type="submit" loading={saving} disabled={!environmentReady || !accountName.trim() || !Object.values(accountValues).some(value => value.length)}>Save test account</Button>
+          </form>
         {/if}
-      </div>
+      </section>
     </div>
-
-    <!-- Run detail (right panel) -->
-    <div class="flex-1 flex flex-col overflow-hidden min-w-0">
-      {#if loadingRun}
-        <div class="flex-1 flex items-center justify-center">
-          <Spinner class="text-amber-500" />
-        </div>
-      {:else if !selectedRun}
-        <div class="flex-1 flex flex-col items-center justify-center text-center px-8">
-          <div class="size-9 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center mb-3">
-            <svg class="size-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">Select a run</p>
-          <p class="text-xs text-zinc-400 mt-1">Click any run on the left to see its results</p>
-        </div>
-      {:else}
-        <!-- Detail header -->
-        <div class="px-5 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3 shrink-0">
-          <Badge variant={statusVariant(selectedRun.status)}>{selectedRun.status}</Badge>
-          <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{selectedRun.suiteName ?? 'Manual Run'}</span>
-          <span class="ml-auto text-xs text-zinc-400 tabular-nums">
-            {selectedRun.passedTests}/{selectedRun.totalTests} passed · {fmt(selectedRun.durationMs)}
-          </span>
-        </div>
-
-        {#if selectedRun.errorMessage}<p class="error-banner m-4" role="alert">{selectedRun.errorMessage}</p>{/if}
-        <!-- Results list -->
-        <div class="overflow-y-auto flex-1 divide-y divide-zinc-100 dark:divide-zinc-800">
-          {#each selectedRun.results as result (`${selectedRun.id}:${result.id}`)}
-            <div class="flex items-start gap-3 px-5 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
-              <!-- Status icon -->
-              <div class="mt-0.5 shrink-0">
-                {#if result.status === 'passed'}
-                  <svg class="size-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
-                  </svg>
-                {:else if result.status === 'failed'}
-                  <svg class="size-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-                  </svg>
-                {:else}
-                  <svg class="size-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 9.25a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clip-rule="evenodd" />
-                  </svg>
-                {/if}
-              </div>
-
-              <div class="flex-1 min-w-0">
-                <p class="text-sm text-zinc-800 dark:text-zinc-200">{result.testName}</p>
-                {#if result.errorMessage}
-                  <p class="text-xs text-red-600 mt-1 font-mono bg-red-50 rounded px-2 py-1">{result.errorMessage}</p>
-                {/if}
-                {#if result.failedStep}
-                  <p class="text-xs text-zinc-400 mt-0.5">at: <code class="font-mono">{result.failedStep}</code></p>
-                {/if}
-                <RunEvidence {result} />
-              </div>
-
-              <span class="text-xs text-zinc-400 shrink-0 tabular-nums">{fmt(result.durationMs)}</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-  </div>
-{/if}
+  {:else}<a href="/projects" class="action-link">Open projects</a>{/if}
+</div></div>
