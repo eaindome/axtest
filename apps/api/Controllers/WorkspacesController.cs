@@ -38,7 +38,7 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
         var workspace = new Workspace { Name = req.Name.Trim() };
         var membership = new WorkspaceMember
         {
-            WorkspaceId = workspace.Id,
+            Workspace = workspace,
             UserId      = UserId,
             Role        = WorkspaceRole.Owner,
         };
@@ -93,7 +93,7 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
         var members = await db.WorkspaceMembers
             .Where(m => m.WorkspaceId == id)
             .Select(m => new WorkspaceMemberDto(
-                m.Id, m.UserId, m.User.Name, m.User.Email,
+                m.Id, m.UserId, m.User.Name, m.User.Username,
                 m.Role.ToString().ToLower(), m.JoinedAt))
             .ToListAsync();
 
@@ -108,17 +108,18 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
         if (membership.Role is not (WorkspaceRole.Owner or WorkspaceRole.Admin))
             return Forbid();
 
-        var targetUser = await db.Users.FirstOrDefaultAsync(u => u.Email == req.Email.ToLower());
+        var targetUser = await db.Users.FirstOrDefaultAsync(u => u.Username == req.Username.Trim().ToLowerInvariant() && !u.IsDisabled);
         if (targetUser is null)
-            return NotFound(new { error = "No user found with that email address" });
+            return NotFound(new { error = "No user found with that username" });
 
         var alreadyMember = await db.WorkspaceMembers
             .AnyAsync(m => m.WorkspaceId == id && m.UserId == targetUser.Id);
         if (alreadyMember)
             return Conflict(new { error = "User is already a member of this workspace" });
 
-        if (!Enum.TryParse<WorkspaceRole>(req.Role, ignoreCase: true, out var role))
-            role = WorkspaceRole.Member;
+        if (!Enum.TryParse<WorkspaceRole>(req.Role, ignoreCase: true, out var role) || !Enum.IsDefined(role) || role == WorkspaceRole.Owner)
+            return BadRequest("Choose Admin, Member, or Viewer. Ownership cannot be granted through invitations.");
+        if (membership.Role == WorkspaceRole.Admin && role == WorkspaceRole.Admin) return Forbid();
 
         var newMember = new WorkspaceMember
         {
@@ -131,7 +132,7 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
 
         return Ok(new WorkspaceMemberDto(
-            newMember.Id, targetUser.Id, targetUser.Name, targetUser.Email,
+            newMember.Id, targetUser.Id, targetUser.Name, targetUser.Username,
             newMember.Role.ToString().ToLower(), newMember.JoinedAt));
     }
 
@@ -148,6 +149,7 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
         if (target.Role == WorkspaceRole.Owner)
             return BadRequest(new { error = "Cannot remove the workspace owner" });
 
+        if (callerMembership.Role == WorkspaceRole.Admin && target.Role == WorkspaceRole.Admin) return Forbid();
         db.WorkspaceMembers.Remove(target);
         await db.SaveChangesAsync();
         return NoContent();

@@ -10,14 +10,20 @@ using Microsoft.EntityFrameworkCore;
 namespace Axtest.Api.Controllers;
 
 [ApiController, Authorize, Route("api/projects/{projectId:long}/runs")]
-public class RunsController(AppDbContext db, ProjectAccess access, ExplorerService explorer, RunnerProcess runner, IHostEnvironment host, IConfiguration config) : ControllerBase
+public class RunsController(AppDbContext db, ProjectAccess access, ExplorerService explorer, RunnerProcess runner, RunInputs inputs, IHostEnvironment host, IConfiguration config) : ControllerBase
 {
     [HttpPost("file")]
     public async Task<IActionResult> RunFile(long projectId, RunFileRequest req, [FromQuery] bool wait = true)
     {
         var project = await access.Get(projectId, true);
         if (project is null) return NotFound();
+        if (req.Variables is { } variables && (variables.Count > 32 || variables.Any(v =>
+            !System.Text.RegularExpressions.Regex.IsMatch(v.Key, @"^AXTEST_[A-Z0-9_]{1,64}$") || v.Value is null || v.Value.Length > 4096)
+            || variables.Sum(v => v.Value?.Length ?? 0) > 16384))
+            return BadRequest("Use at most 32 AXTEST_ runtime inputs, up to 4096 characters each and 16 KB total.");
         if (!host.IsDevelopment() || !config.GetValue("Runner:Enabled", host.IsDevelopment())) return StatusCode(503, "Browser execution is currently restricted to local Development until deployment isolation is configured.");
+        if (HttpContext.Connection.RemoteIpAddress is not { } remote || !System.Net.IPAddress.IsLoopback(remote))
+            return StatusCode(403, "Browser execution requires a connection from this machine until isolated runners are available.");
         var file = await explorer.File(projectId, req.FileId);
         if (req.Content is null || req.Content.Length > 1_000_000) return BadRequest("Content must be at most 1 MB.");
         if (req.Environment is not ("production" or "staging" or "local")) return BadRequest("Unknown environment.");
@@ -35,6 +41,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         if (count > 500) return BadRequest("At most 500 tests can be submitted per run.");
         var files = await db.ProjectFiles.Where(f => f.ProjectId == projectId && !f.IsFolder && (f.Path.StartsWith("auth/") || f.Path.StartsWith("modules/")))
             .Select(f => new { path = f.Path, content = f.Content }).ToListAsync();
+        var runtimeKey = req.Variables?.Count > 0 ? inputs.Store(req.Variables) : null;
         var run = new TestRun
         {
             ProjectId = projectId,
@@ -43,9 +50,11 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
             Environment = req.Environment,
             TriggeredBy = "editor",
             TotalTests = count,
-            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files }),
+            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files, runtimeKey }),
         };
-        db.TestRuns.Add(run); await db.SaveChangesAsync();
+        db.TestRuns.Add(run);
+        try { await db.SaveChangesAsync(); }
+        catch { if (runtimeKey is not null) inputs.Remove(runtimeKey); throw; }
         if (wait)
         {
             var deadline = DateTime.UtcNow.AddSeconds(Math.Clamp(config.GetValue("Runner:TimeoutSeconds", 120), 5, 300) + 10);
