@@ -12,5 +12,6 @@ public record ProjectDto(
     int RunCount,
     int SystemCount,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    DateTime? ArchivedAt = null
 );
