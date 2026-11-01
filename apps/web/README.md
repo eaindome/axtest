@@ -27,6 +27,8 @@ API mode restores its HttpOnly cookie session through `/api/auth/session` and re
 
 Tests still execute AUTH steps against the application being tested. Set a project production URL or configure staging/local in the editor; the URL must be reachable from the backend runner.
 
+The editor's environment selector has an adjacent, always-visible Edit URL button for Production, Staging and Local. Production edits the project base URL; Staging and Local keep their own URL or explicitly reuse Production. Run opens a centered options dialog, with per-run input values and an optional Show browser checkbox. Visible Chromium opens on the local API machine; headless execution remains the default.
+
 ## Runs and evidence
 
 The editor submits runs asynchronously, displays queue/running state, and polls their persisted run resource. Leaving the editor stops browser polling, not a run already queued on the backend. Project run history refreshes while runs are pending or running.
