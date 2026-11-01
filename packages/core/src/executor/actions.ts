@@ -185,7 +185,9 @@ async function executeWait(
   }
   if (!action.target) return
 
-  const el = page.getByText(action.target).or(page.getByLabel(action.target))
+  // A labelled field matches both its label and input. Waits concern visibility,
+  // so accept any visible match and wait for all matches to hide on disappearance.
+  const el = page.getByText(action.target).or(page.getByLabel(action.target)).filter({ visible: true }).first()
   if (action.condition === 'appear') {
     await el.waitFor({ state: 'visible', timeout: 10000 })
   } else {

@@ -8,7 +8,7 @@ import type {
   GenerateTestsRequest, GenerateTestsResponse,
 } from './types'
 
-import { readModeStorage } from '$lib/stores/dev'
+import { clearAuth } from '$lib/stores/auth'
 
 export const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:5000').replace(/\/$/, '')
 export class ApiError extends Error {
@@ -24,28 +24,37 @@ async function responseError(res: Response): Promise<never> {
   } catch { /* An older API may return plain text. */ }
   throw new ApiError(message, res.status)
 }
-function authHeaders(): Record<string, string> {
-  const token = readModeStorage('axtest_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+let csrfToken: string | null = null
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(options.method ?? 'GET')
+  if (mutation && !csrfToken) await session()
   let res: Response
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options,
-      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers } })
+    res = await fetch(`${API_BASE}${path}`, { ...options, credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(mutation && csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}), ...options.headers } })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new Error('Cannot reach the API. Start the backend and check VITE_API_URL, then try again.')
   }
-  if (!res.ok) return responseError(res)
+  if (!res.ok) {
+    if (res.status === 401 && path !== '/api/auth/login') {
+      csrfToken = null; clearAuth()
+      window.dispatchEvent(new Event('axtest:session-expired'))
+    }
+    return responseError(res)
+  }
   if (res.status === 204) return undefined as T
-  return res.json()
+  const result = await res.json()
+  if (typeof result.csrfToken === 'string') csrfToken = result.csrfToken
+  return result
 }
-export const developmentSession = () => request<AuthResponse>('/api/dev/session')
+export const session = () => request<import('./types').SessionResponse>('/api/auth/session')
+export const logout = () => request<import('./types').SessionResponse>('/api/auth/logout', { method: 'POST' })
+export const changePassword = (currentPassword: string, newPassword: string) => request<AuthResponse>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })
 export async function screenshotBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const url = new URL(path, API_BASE)
   if (url.origin !== new URL(API_BASE).origin || !/^\/api\/projects\/\d+\/runs\/\d+\/artifacts\//.test(url.pathname)) throw new Error('Invalid screenshot URL.')
-  const response = await fetch(url, { headers: authHeaders(), signal })
+  const response = await fetch(url, { credentials: 'include', signal })
   if (!response.ok) return responseError(response)
   return response.blob()
 }

@@ -491,7 +491,11 @@ export function parseActionLine(line: string): Action | null {
     line = `navigate to "${line.slice(12)}"`
   for (const { re, parse } of ACTION_PATTERNS) {
     const m = line.match(re)
-    if (m) return parse(m, raw)
+    if (m) {
+      const action = parse(m, raw)
+      if ('target' in action && typeof action.target === 'string') action.target = resolveVar(action.target)
+      return action
+    }
   }
   throw new ParseError(`Unknown action: "${line}"`)
 }
@@ -803,7 +807,8 @@ export function parseAssertionLine(line: string): Assertion | null {
     .replace(/\bis_disabled\b/g, 'is disabled')
   for (const { re, parse } of ASSERTION_PATTERNS) {
     const m = line.match(re)
-    if (m) return parse(m, raw)
+    if (m) return Object.fromEntries(Object.entries(parse(m, raw)).map(([key, value]) => [key,
+      key !== 'raw' && key !== 'type' && typeof value === 'string' ? resolveVar(value) : value])) as Assertion
   }
   throw new ParseError(`Unknown assertion: "${line}"`)
 }

@@ -1,7 +1,7 @@
 export interface User {
   id: number
   name: string
-  email: string
+  username: string
 }
 
 export interface Workspace {
@@ -57,18 +57,19 @@ export interface RunDetail extends RunListItem {
 }
 
 export interface AuthResponse {
-  token: string
+  token?: string
+  csrfToken?: string
   user: User
 }
 
 export interface LoginRequest {
-  email: string
+  username: string
   password: string
 }
 
 export interface RegisterRequest {
   name: string
-  email: string
+  username: string
   password: string
 }
 
@@ -132,6 +133,7 @@ export interface RunFileRequest {
   content: string
   environment: string
   testNames?: string[]
+  variables?: Record<string, string>
 }
 
 export type EnvironmentName = 'production' | 'staging' | 'local'
@@ -161,3 +163,5 @@ export interface RunExecutionOptions {
   signal?: AbortSignal
   onProgress?: (run: RunDetail) => void
 }
+
+export interface SessionResponse { user: User | null; csrfToken: string; expiresAt?: string | null }

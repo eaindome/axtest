@@ -3,7 +3,7 @@ import type { User, Workspace, Project, RunListItem, RunDetail, TestFile } from 
 export const mockUser: User = {
   id: 1,
   name: 'Ekow Indome',
-  email: 'ekow@ssmas.com'
+  username: 'eaindome'
 }
 
 export const mockToken = 'mock_jwt_token_dev_only'

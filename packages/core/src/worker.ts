@@ -59,7 +59,13 @@ async function main(input: Input): Promise<unknown> {
       generatedCount: result.count,
     }
   }
+  function checkServerFlow(flow: FileContext) {
+    if (flow.tests.some(t => [...t.setup, ...t.stepGroups.flatMap(g => g.steps)].some(a => a.type === 'upload'))) {
+      throw new Error('Server-side file uploads require managed assets and are currently disabled. Local CLI uploads remain available.')
+    }
+  }
   const file = parseContent(input.content, input.fileName ?? '<inline>')
+  checkServerFlow(file)
   if (!file.tests.length) throw new Error('No tests found.')
   const byId = new Map(file.tests.map((t) => [t.id, t]))
   const selected = input.testNames?.length
@@ -127,6 +133,7 @@ async function main(input: Input): Promise<unknown> {
         : aliases.includes(file.module ?? '')
     if (!needed) continue
     const flow = parseContent(entry.content, entry.path)
+    checkServerFlow(flow)
     for (const alias of aliases) {
       if (map.has(alias)) throw new Error(`Ambiguous reusable flow: ${alias}`)
       map.set(alias, flow)
@@ -157,7 +164,7 @@ async function main(input: Input): Promise<unknown> {
         artifactDirectory: input.artifactDirectory,
         signal: abort.signal,
       },
-      { timeout: 7000, browserExecutablePath: input.browserExecutablePath },
+      { timeout: 7000, browserExecutablePath: input.browserExecutablePath, ...(Object.keys(input.variables ?? {}).length ? { screenshots: 'never' as const } : {}) },
     )
     if (abort.signal.aborted)
       throw new Error('Execution canceled or timed out.')
@@ -169,16 +176,24 @@ async function main(input: Input): Promise<unknown> {
 }
 
 async function run() {
+  let values: string[] = []
+  function redact(value: unknown): unknown {
+    if (typeof value === 'string') return values.reduce((text, secret) => text.replaceAll(secret, '[redacted]'), value)
+    if (Array.isArray(value)) return value.map(redact)
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redact(entry)]))
+    return value
+  }
   try {
     const input = JSON.parse(readFileSync(0, 'utf8')) as Input
+    values = Object.values(input.variables ?? {}).filter(Boolean).sort((a, b) => b.length - a.length)
     const result = await main(input)
-    process.stdout.write(JSON.stringify({ ok: true, result }))
+    process.stdout.write(JSON.stringify(redact({ ok: true, result })))
   } catch (error) {
     process.stdout.write(
-      JSON.stringify({
+      JSON.stringify(redact({
         ok: false,
         error: error instanceof Error ? error.message : String(error),
-      }),
+      })),
     )
     process.exitCode = 1
   }
