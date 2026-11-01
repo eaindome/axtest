@@ -6,6 +6,6 @@ public record UpdateWorkspaceRequest(string Name);
 
 public record WorkspaceDto(long Id, string Name, int MemberCount, int ProjectCount, DateTime CreatedAt);
 
-public record WorkspaceMemberDto(long Id, long UserId, string UserName, string UserEmail, string Role, DateTime JoinedAt);
+public record WorkspaceMemberDto(long Id, long UserId, string DisplayName, string Username, string Role, DateTime JoinedAt);
 
-public record InviteMemberRequest(string Email, string Role);
+public record InviteMemberRequest(string Username, string Role);
