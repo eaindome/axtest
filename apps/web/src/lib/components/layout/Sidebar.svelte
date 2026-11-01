@@ -28,6 +28,20 @@
     return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/')
   }
 
+  let accountMenu: HTMLDetailsElement | undefined = $state()
+  function closeAccountMenu() {
+    if (accountMenu) accountMenu.open = false
+  }
+  function dismissAccountMenu(event: MouseEvent) {
+    if (accountMenu && !accountMenu.contains(event.target as Node)) closeAccountMenu()
+  }
+  function handleAccountKey(event: KeyboardEvent) {
+    if (event.key === 'Escape' && accountMenu?.open) {
+      closeAccountMenu()
+      accountMenu.querySelector('summary')?.focus()
+    }
+  }
+
   let logoutError = $state('')
   async function logout() {
     if (!window.dispatchEvent(new Event('axtest:before-signout', { cancelable: true }))) return
@@ -39,10 +53,6 @@
   let showSearch = $state(false)
   let searchRef  = $state<HTMLInputElement | null>(null)
   let isMac      = $state(false)
-
-  let initials = $derived(
-    $authStore.user?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) ?? '?'
-  )
 
   let matchedNav = $derived(
     query.trim()
@@ -89,6 +99,8 @@
     return () => window.removeEventListener('keydown', handleKey)
   })
 </script>
+
+<svelte:window onclick={dismissAccountMenu} onkeydown={handleAccountKey} />
 
 <aside class="{compact ? 'w-16' : 'w-60'} transition-[width] duration-300 ease-out shrink-0 flex flex-col h-screen bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200/80 dark:border-zinc-800">
   <div class="h-16 {compact ? 'px-2 justify-center' : 'px-4'} flex items-center border-b border-zinc-200/80 dark:border-zinc-800">
@@ -143,13 +155,6 @@
     {/if}
   </div>
 
-  <div class="{compact ? 'px-2 pt-2 pb-2' : 'px-3 pb-2'}">
-    <a href="/editor" class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold shadow-sm shadow-amber-500/20 transition-all">
-      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-      {#if !compact}Open editor{/if}
-    </a>
-  </div>
-
   {#if logoutError}<p class="error-banner mx-2" role="alert">{logoutError}</p>{/if}
   <nav class="flex-1 {compact ? 'px-2 py-2' : 'px-3 py-1'} overflow-y-auto sidebar-scroll">
     <p class="px-2.5 pb-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-widest overflow-hidden transition-all duration-200 {compact ? 'max-h-0 opacity-0 pb-0' : 'max-h-8 opacity-100'}">Workspace</p>
@@ -185,43 +190,45 @@
     </div>
   {/if}
 
-  <div class="{compact ? 'p-2' : 'p-3'} border-t border-zinc-200/80 dark:border-zinc-800">
-    {#if $authStore.user}
-      <div class="flex items-center {compact ? 'flex-col gap-1.5' : 'gap-2.5'} p-2 rounded-lg bg-white/50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-700/50 transition-all duration-200">
-        <div class="size-8 rounded-full bg-amber-600 flex items-center justify-center shrink-0 shadow-sm">
-          <span class="text-xs font-bold text-white leading-none">{initials}</span>
-        </div>
+  <div class="px-2 py-1.5 border-t border-zinc-200/80 dark:border-zinc-800">
+    <details bind:this={accountMenu} class="relative account-menu" onfocusout={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeAccountMenu()
+    }}>
+      <summary aria-label="Account options" title={compact ? 'Account options' : undefined} class="list-none cursor-pointer flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-white dark:hover:bg-zinc-800/80 text-zinc-700 dark:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50">
+        <img src="/avatars/open-peeps.svg" alt="" width="32" height="32" class="size-8 rounded-lg shrink-0 bg-orange-100 ring-1 ring-black/5 dark:ring-white/10" />
         {#if !compact}
-          <div class="flex-1 min-w-0">
-            <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{$authStore.user.name}</p>
-            <p class="text-xs text-zinc-400 truncate">{$authStore.user.username}</p>
+          <span class="flex-1 min-w-0">
+            <span class="block text-xs font-semibold truncate">{$authStore.user?.name ?? 'Account'}</span>
+            <span class="block text-xs text-zinc-500 dark:text-zinc-400 truncate">{$authStore.user?.username ?? ''}</span>
+          </span>
+          <svg class="size-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.75" /><circle cx="12" cy="12" r="1.75" /><circle cx="12" cy="19" r="1.75" /></svg>
+        {/if}
+      </summary>
+      <div class="absolute bottom-0 left-[calc(100%+1rem)] w-56 z-50 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-900/10 p-1.5" aria-label="Account options">
+        <div class="flex items-center gap-2.5 px-2 py-2.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
+          <img src="/avatars/open-peeps.svg" alt="" width="36" height="36" class="size-9 rounded-lg shrink-0 bg-orange-100" />
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{$authStore.user?.name ?? 'Account'}</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">{$authStore.user?.username ?? ''}</p>
           </div>
-          <button onclick={logout} aria-label="Sign out" class="h-7 px-2 rounded-md inline-flex items-center gap-1 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-3.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-            </svg>
-            Sign out
-          </button>
-        {:else}
-          <button onclick={logout} aria-label="Sign out" title="Sign out" class="size-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-            </svg>
-          </button>
-        {/if}
-      </div>
-    {:else}
-      <button onclick={logout} title={compact ? 'Sign out' : undefined} class="w-full flex items-center {compact ? 'justify-center' : 'gap-2.5'} px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:bg-white/60 hover:text-zinc-600 transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
-        {#if !compact}
+        </div>
+        <a href="/settings" onclick={closeAccountMenu} class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="8" r="3.25" /><path stroke-linecap="round" d="M5 20v-2a7 7 0 0 1 14 0v2" /></svg>
+          Account settings
+        </a>
+        <button onclick={() => { closeAccountMenu(); logout() }} class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H5v14h4m5-11 4 4-4 4m-5-4h9" /></svg>
           Sign out
-        {/if}
-      </button>
-    {/if}
+        </button>
+      </div>
+    </details>
   </div>
 </aside>
 
 <style>
+  .account-menu > summary::-webkit-details-marker { display: none; }
+  .account-menu[open] > summary { background: var(--color-zinc-100); }
+  :global(.dark) .account-menu[open] > summary { background: var(--color-zinc-800); }
   .sidebar-scroll { scrollbar-width: thin; scrollbar-color: rgb(212 212 216 / 0.5) transparent; }
   .sidebar-scroll::-webkit-scrollbar { width: 4px; }
   .sidebar-scroll::-webkit-scrollbar-thumb { background: rgb(212 212 216 / 0.5); border-radius: 9999px; }
