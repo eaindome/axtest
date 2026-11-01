@@ -170,7 +170,7 @@ function parseBlocks(lines: string[]): {
   let currentAssertions: Assertion[] = []
 
   for (const line of lines) {
-    if (!line || line.startsWith('#')) continue
+    if (!line || line.startsWith('#') || line.startsWith('STEP_ID ')) continue
 
     if (line === 'SETUP') {
       currentBlock = 'SETUP'

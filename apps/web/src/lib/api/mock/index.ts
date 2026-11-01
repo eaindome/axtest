@@ -58,6 +58,14 @@ export const createProject = async (_workspaceId: number, data: CreateProjectReq
   return project
 }
 
+export const updateProject = async (_workspaceId: number, projectId: number, data: CreateProjectRequest): Promise<Project> => {
+  await delay()
+  const project = [...mockProjects, ...getSandboxProjects()].find(project => project.id === projectId)
+  if (!project) throw new Error('Project not found.')
+  Object.assign(project, { name: data.name, baseUrl: data.baseUrl ?? null, description: data.description ?? null, updatedAt: new Date().toISOString() })
+  return { ...project }
+}
+
 export const getRuns = async (_projectId: number, _page = 1): Promise<RunListItem[]> => {
   await delay()
   return mockRuns

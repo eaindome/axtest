@@ -3,7 +3,7 @@ import { STEP_META } from './types'
 import type { DropdownOption } from '$lib/components/ui/Dropdown.svelte'
 
 export const STEP_TYPE_OPTIONS: DropdownOption[] = (
-  ['navigate', 'click', 'type', 'select', 'clear'] as StepType[]
+  ['navigate', 'click', 'type', 'select', 'clear', 'wait', 'custom'] as StepType[]
 ).map(t => ({
   value: t,
   label: STEP_META[t].label,

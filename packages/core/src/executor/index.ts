@@ -75,6 +75,7 @@ export async function executeFile(
         : chromium
   const browser = await browserType.launch({
     headless: !options.headed,
+    slowMo: options.headed ? 150 : 0,
     executablePath: cfg.browserExecutablePath ?? undefined,
   })
 

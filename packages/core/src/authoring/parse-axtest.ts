@@ -124,6 +124,8 @@ export function serializeRule(r: Rule): string {
 
 export function parseStep(line: string): Step {
   const s = makeStep()
+  const wait = line.match(/^wait for "(.+)" to (appear|disappear)$/)
+  if (wait) return { ...s, type: 'wait', target: wait[1], value: wait[2] }
   if (line.startsWith('navigate to '))
     return { ...s, type: 'navigate', target: line.slice(12).trim() }
   if (line.startsWith('click ')) {
@@ -154,7 +156,7 @@ export function parseStep(line: string): Step {
     const body = line.slice(7)
     return { ...s, type: 'assert', assertion: body }
   }
-  return { ...s, type: 'navigate', target: line }
+  return { ...s, type: 'custom', target: line }
 }
 
 export function parseAxtest(content: string): ParsedFile {
@@ -166,6 +168,7 @@ export function parseAxtest(content: string): ParsedFile {
     tests: [],
   }
   const lines = content.split('\n')
+  const hasTests = lines.some(line => /^\s*TEST\s+/.test(line))
   let i = 0
   if (lines[i]?.trim() === '---') {
     i++
@@ -199,7 +202,10 @@ export function parseAxtest(content: string): ParsedFile {
   while (i < lines.length) {
     const t = lines[i].trim()
     if (t.startsWith('AUTH ')) {
-      result.auth = t.slice(5).trim()
+      result.auth = t.slice(5).trim().replace(/^"|"$/g, '')
+      section = null
+    } else if (t.startsWith('MODULE ')) {
+      result.module = t.slice(7).trim().replace(/^"|"$/g, '')
       section = null
     } else if (t === 'RULES') {
       section = 'rules'
@@ -216,6 +222,12 @@ export function parseAxtest(content: string): ParsedFile {
     } else if (t.startsWith('GENERATED FROM ') && cur) {
       cur.generatedFrom = t.slice(15).replace(/^"|"$/g, '')
     } else if (t === 'STEPS') {
+      if (!hasTests && !cur && (result.auth || result.module)) {
+        result.flow = result.auth ? 'auth' : 'module'
+        cur = makeTestBlock(result.auth || result.module!)
+        cur.id = 'flow'
+        result.tests.push(cur)
+      }
       section = 'steps'
     } else if (t === 'ASSERT') {
       section = 'asserts'
@@ -270,6 +282,10 @@ export function serializeStep(s: Step): string {
       return `select "${s.value}" in "${s.target}"`
     case 'clear':
       return `clear "${s.target}"`
+    case 'wait':
+      return `wait for "${s.target}" to ${s.value === 'disappear' ? 'disappear' : 'appear'}`
+    case 'custom':
+      return s.target
     case 'assert': {
       const parsed = parseAssertion(s.assertion)
       return `assert ${serializeAssertion(parsed)}`
@@ -283,6 +299,7 @@ export function serializeAxtest(p: ParsedFile): string {
   if (p.baseUrl) out.push(`base_url: ${p.baseUrl}`)
   out.push('---', '')
   if (p.auth) out.push(`AUTH ${p.auth}`, '')
+  if (p.module) out.push(`MODULE ${p.module}`, '')
   if (p.rules.length) {
     out.push('RULES')
     for (const r of p.rules) {
@@ -290,6 +307,14 @@ export function serializeAxtest(p: ParsedFile): string {
       out.push(`  ${serializeRule(r)}`)
     }
     out.push('')
+  }
+  if (p.flow) {
+    const flow = p.tests[0]
+    out.push('STEPS')
+    for (const step of flow?.steps ?? []) out.push(`  STEP_ID ${step.id}`, `  ${serializeStep(step)}`)
+    out.push('ASSERT')
+    for (const step of flow?.asserts ?? []) out.push(`  STEP_ID ${step.id}`, `  ${serializeStep(step)}`)
+    return out.join('\n').trimEnd()
   }
   for (const t of p.tests) {
     out.push(`TEST "${t.name}"`)

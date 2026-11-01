@@ -80,6 +80,9 @@ export const createProject = (workspaceId: number, data: CreateProjectRequest) =
     body: JSON.stringify(data)
   })
 
+export const updateProject = (workspaceId: number, projectId: number, data: CreateProjectRequest) =>
+  request<Project>(`/api/workspaces/${workspaceId}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify(data) })
+
 export const getRuns = (projectId: number, page = 1) =>
   request<RunListItem[]>(`/api/projects/${projectId}/runs?page=${page}`)
 

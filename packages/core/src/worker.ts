@@ -17,6 +17,7 @@ type Input = {
   artifactDirectory?: string
   timeoutMs?: number
   browserExecutablePath?: string
+  headed?: boolean
   variables?: Record<string, string>
   seedTestId?: string
 }
@@ -163,6 +164,7 @@ async function main(input: Input): Promise<unknown> {
         baseUrl: input.baseUrl,
         artifactDirectory: input.artifactDirectory,
         signal: abort.signal,
+        headed: input.headed === true,
       },
       { timeout: 7000, browserExecutablePath: input.browserExecutablePath, ...(Object.keys(input.variables ?? {}).length ? { screenshots: 'never' as const } : {}) },
     )

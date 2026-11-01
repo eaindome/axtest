@@ -134,6 +134,7 @@ export interface RunFileRequest {
   environment: string
   testNames?: string[]
   variables?: Record<string, string>
+  headed?: boolean
 }
 
 export type EnvironmentName = 'production' | 'staging' | 'local'

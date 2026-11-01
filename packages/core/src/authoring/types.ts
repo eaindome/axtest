@@ -4,6 +4,8 @@ export type StepType =
   | 'type'
   | 'select'
   | 'clear'
+  | 'wait'
+  | 'custom'
   | 'assert'
 
 /** Supported assertion verbs in ASSERT blocks (serialized after `assert`). */
@@ -63,6 +65,8 @@ export interface TestBlock {
 }
 
 export interface ParsedFile {
+  flow?: 'auth' | 'module'
+  module?: string
   title: string
   baseUrl: string
   auth: string
@@ -99,6 +103,8 @@ export const STEP_META: Record<
     dot: 'bg-orange-500',
   },
   clear: { label: 'Clear', border: 'border-l-zinc-400', dot: 'bg-zinc-400' },
+  wait: { label: 'Wait', border: 'border-l-sky-400', dot: 'bg-sky-400' },
+  custom: { label: 'Action', border: 'border-l-zinc-400', dot: 'bg-zinc-400' },
   assert: {
     label: 'Assert',
     border: 'border-l-amber-500',
