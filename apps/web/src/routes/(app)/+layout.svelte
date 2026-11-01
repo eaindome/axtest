@@ -1,9 +1,8 @@
 <script lang="ts">
   import { get } from 'svelte/store'
-  import { dev } from '$app/environment'
   import { authStore, setAuth, clearAuth } from '$lib/stores/auth'
   import { useMock } from '$lib/stores/dev'
-  import { developmentSession, ApiError } from '$lib/api/real'
+  import { session, ApiError } from '$lib/api/real'
   import { onMount } from 'svelte'
   import { page } from '$app/stores'
   import { goto } from '$app/navigation'
@@ -25,26 +24,27 @@
     const saved = localStorage.getItem('axtest_sidebar_open')
     sidebarCompact = window.innerWidth < 1024 || saved === '0'
     void initialize()
+    const expired = () => { clearAuth(); void goto('/login', { replaceState: true }) }
+    window.addEventListener('axtest:session-expired', expired)
+    return () => window.removeEventListener('axtest:session-expired', expired)
   })
 
   async function initialize() {
     ready = false
     connectionError = ''
     try {
-      if (!get(useMock) && dev) {
-        const session = await developmentSession()
-        setAuth(session.user, session.token)
-      } else if (!get(authStore).token) {
-        await goto('/login', { replaceState: true })
-        return
-      }
+      if (!get(useMock)) {
+        const current = await session()
+        if (!current.user) { clearAuth(); await goto('/login', { replaceState: true }); return }
+        setAuth(current.user)
+      } else if (!get(authStore).user) { await goto('/login', { replaceState: true }); return }
       const list = await api().getWorkspaces()
       if (!list.length) throw new Error('No workspace is available for this session.')
       workspaces.set(list)
       setWorkspace(list.find(w => w.id === savedWorkspaceId) ?? list[0])
       ready = true
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401 && !dev) {
+      if (error instanceof ApiError && error.status === 401) {
         clearAuth()
         await goto('/login', { replaceState: true })
         return

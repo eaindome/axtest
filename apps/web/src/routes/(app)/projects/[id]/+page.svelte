@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { page } from '$app/stores'
   import { api } from '$lib/api'
   import { currentWorkspace } from '$lib/stores/workspace'
@@ -20,28 +21,46 @@
   $effect(() => {
     const ws = $currentWorkspace
     const id = projectId
-    if (ws && id) load(ws.id, id)
+    if (ws && id) untrack(() => void load(ws.id, id))
   })
 
-  async function load(workspaceId: number, id: number) {
-    loading = true
+  let loadVersion = 0
+  let detailVersion = 0
+  $effect(() => {
+    const workspaceId = $currentWorkspace?.id
+    const id = projectId
+    if (!workspaceId || !runs.some(r => r.status === 'pending' || r.status === 'running')) return
+    const timer = setTimeout(() => void load(workspaceId, id, true), 1500)
+    return () => clearTimeout(timer)
+  })
+  async function load(workspaceId: number, id: number, refresh = false) {
+    const version = ++loadVersion
+    if (!refresh) { loading = true; project = null; selectedRun = null; runs = []; detailVersion++ }
     error = ''
     try {
-      const [projs, runList] = await Promise.all([
-        api().getProjects(workspaceId),
-        api().getRuns(id)
-      ])
+      const [projs, runList] = await Promise.all([api().getProjects(workspaceId), api().getRuns(id)])
+      if (version !== loadVersion) return
       project = projs.find(p => p.id === id) ?? null
       runs = runList
-    } catch { error = 'We couldn’t load this project’s run history. Please try again.' }
-    loading = false
+      if (refresh && selectedRun && (selectedRun.status === 'pending' || selectedRun.status === 'running')) {
+        const selectedId = selectedRun.id
+        const updated = await api().getRun(id, selectedId)
+        if (version === loadVersion && selectedRun?.id === selectedId) selectedRun = updated
+      }
+    } catch { if (version === loadVersion) error = 'We couldn’t load this project’s run history. Please try again.' }
+    finally { if (version === loadVersion) loading = false }
   }
-
   async function selectRun(run: RunListItem) {
-    if (selectedRun?.id === run.id) { selectedRun = null; return }
+    const version = ++detailVersion
+    if (selectedRun?.id === run.id) { selectedRun = null; loadingRun = false; return }
     loadingRun = true
-    try { selectedRun = await api().getRun(projectId, run.id) } catch { error = 'We couldn’t load the selected run. Please try again.' }
-    loadingRun = false
+    error = ''
+    const id = projectId
+    try {
+      const detail = await api().getRun(id, run.id)
+      if (version === detailVersion && id === projectId) selectedRun = detail
+    } catch { if (version === detailVersion) error = 'We couldn’t load the selected run. Please try again.' }
+    finally { if (version === detailVersion) loadingRun = false }
   }
 
   function fmt(ms: number) {

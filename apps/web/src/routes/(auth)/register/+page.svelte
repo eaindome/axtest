@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useMock } from '$lib/stores/dev'
   import { goto } from '$app/navigation'
   import { api } from '$lib/api'
   import { setAuth } from '$lib/stores/auth'
@@ -7,7 +8,7 @@
   import Button from '$lib/components/ui/Button.svelte'
 
   let name     = $state('')
-  let email    = $state('')
+  let username    = $state('')
   let password = $state('')
   let error    = $state('')
   let loading  = $state(false)
@@ -17,7 +18,7 @@
     error = ''
     loading = true
     try {
-      const { token, user } = await api().register({ name, email, password })
+      const { token, user } = await api().register({ name, username, password })
       setAuth(user, token)
       goto('/dashboard')
     } catch (err) {
@@ -32,6 +33,7 @@
   <h2 class="text-2xl tracking-tight font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Create account</h2>
   <p class="text-sm text-zinc-500 mb-6">Start testing in minutes</p>
 
+  {#if $useMock}<p class="text-xs text-amber-700 dark:text-amber-400 mb-4">Mock mode uses demo credentials. Select API to sign in to your account.</p>{/if}
   <form onsubmit={submit} class="space-y-4">
     <Input
       label="Full name"
@@ -41,21 +43,21 @@
       autocomplete="name"
     />
     <Input
-      label="Email"
-      type="email"
-      bind:value={email}
-      placeholder="you@example.com"
+      label="Username"
+      type="text"
+      bind:value={username}
+      placeholder="Your username"
       required
-      autocomplete="email"
+      autocomplete="username"
     />
     <Input
       label="Password"
       type="password"
       bind:value={password}
-      placeholder="Min 8 characters"
+      placeholder="Min 12 characters"
       required
       autocomplete="new-password"
-      hint="At least 8 characters"
+      hint="At least 12 characters; up to 72 bytes"
     />
 
     {#if error}

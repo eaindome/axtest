@@ -16,6 +16,7 @@
 
   let container = $state<HTMLDivElement | undefined>(undefined)
   let view: EditorView | null = null
+  let applyingExternal = false
   let lastExternal = $state('')
 
   export function focusDiagnostic(
@@ -34,7 +35,7 @@
     view = new EditorView({
       state: createEditorState(value, $darkMode, v => {
         lastExternal = v
-        onchange?.(v)
+        if (!applyingExternal) onchange?.(v)
       }),
       parent: container,
     })
@@ -60,9 +61,9 @@
   $effect(() => {
     if (!view || value === lastExternal) return
     lastExternal = value
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-    })
+    applyingExternal = true
+    try { view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } }) }
+    finally { applyingExternal = false }
   })
 
   onDestroy(() => {

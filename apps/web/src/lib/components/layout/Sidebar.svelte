@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { logout as apiLogout } from '$lib/api/real'
   import { useMock } from '$lib/stores/dev'
-  import { dev } from '$app/environment'
   import { onMount } from 'svelte'
   import { page } from '$app/stores'
   import { goto } from '$app/navigation'
@@ -28,9 +28,11 @@
     return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/')
   }
 
-  function logout() {
-    clearAuth()
-    goto('/login')
+  let logoutError = $state('')
+  async function logout() {
+    if (!window.dispatchEvent(new Event('axtest:before-signout', { cancelable: true }))) return
+    try { if (!$useMock) await apiLogout(); clearAuth(); await goto('/login', { replaceState: true }) }
+    catch (error) { logoutError = error instanceof Error ? error.message : 'Could not sign out. Please try again.' }
   }
 
   let query      = $state('')
@@ -148,6 +150,7 @@
     </a>
   </div>
 
+  {#if logoutError}<p class="error-banner mx-2" role="alert">{logoutError}</p>{/if}
   <nav class="flex-1 {compact ? 'px-2 py-2' : 'px-3 py-1'} overflow-y-auto sidebar-scroll">
     <p class="px-2.5 pb-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-widest overflow-hidden transition-all duration-200 {compact ? 'max-h-0 opacity-0 pb-0' : 'max-h-8 opacity-100'}">Workspace</p>
     <div class="space-y-0.5">
@@ -191,29 +194,29 @@
         {#if !compact}
           <div class="flex-1 min-w-0">
             <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{$authStore.user.name}</p>
-            <p class="text-xs text-zinc-400 truncate">{$authStore.user.email}</p>
+            <p class="text-xs text-zinc-400 truncate">{$authStore.user.username}</p>
           </div>
-          {#if $useMock || !dev}<button onclick={logout} aria-label="Sign out" class="h-7 px-2 rounded-md inline-flex items-center gap-1 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-300 transition-colors">
+          <button onclick={logout} aria-label="Sign out" class="h-7 px-2 rounded-md inline-flex items-center gap-1 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-300 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-3.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
             Sign out
-          </button>{/if}
+          </button>
         {:else}
-          {#if $useMock || !dev}<button onclick={logout} aria-label="Sign out" title="Sign out" class="size-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 transition-colors">
+          <button onclick={logout} aria-label="Sign out" title="Sign out" class="size-7 rounded-md flex items-center justify-center text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" class="size-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
-          </button>{/if}
+          </button>
         {/if}
       </div>
     {:else}
-      {#if $useMock || !dev}<button onclick={logout} title={compact ? 'Sign out' : undefined} class="w-full flex items-center {compact ? 'justify-center' : 'gap-2.5'} px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:bg-white/60 hover:text-zinc-600 transition-colors">
+      <button onclick={logout} title={compact ? 'Sign out' : undefined} class="w-full flex items-center {compact ? 'justify-center' : 'gap-2.5'} px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-400 hover:bg-white/60 hover:text-zinc-600 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
         {#if !compact}
           Sign out
         {/if}
-      </button>{/if}
+      </button>
     {/if}
   </div>
 </aside>

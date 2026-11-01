@@ -6,6 +6,7 @@
   import type { RunDetail } from '$lib/api'
 
   interface Props {
+    projectId?: number
     open: boolean
     height: number
     running: boolean
@@ -15,7 +16,7 @@
     onResize: (delta: number) => void
   }
 
-  let { open, height, running, runResult, onClose, onResizeStart, onResize }: Props = $props()
+  let { projectId, open, height, running, runResult, onClose, onResizeStart, onResize }: Props = $props()
 
   function fmt(ms: number) {
     return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
@@ -34,8 +35,8 @@
     <div class="px-3 py-2 flex items-center gap-2 shrink-0 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/80">
       <p class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Results</p>
       {#if runResult && !running}
-        <Badge variant={runResult.status === 'passed' ? 'pass' : 'fail'}>
-          {runResult.passedTests}/{runResult.totalTests} passed
+        <Badge variant={runResult.status === 'passed' ? 'pass' : runResult.status === 'failed' ? 'fail' : runResult.status === 'pending' ? 'pending' : 'running'}>
+          {runResult.status === 'pending' || runResult.status === 'running' ? runResult.status : `${runResult.passedTests}/${runResult.totalTests} passed`}
         </Badge>
         <span class="text-xs text-zinc-400">{fmt(runResult.durationMs)}</span>
       {/if}
@@ -55,6 +56,7 @@
           <span class="text-sm text-zinc-400">{runResult?.status === 'pending' ? 'Queued for execution…' : 'Running tests…'}</span>
         </div>
       {:else if runResult}
+        {#if runResult.status === 'pending' || runResult.status === 'running'}<p class="text-sm text-zinc-500 p-4">This run is still {runResult.status}. {#if projectId}<a class="text-amber-700 dark:text-amber-400 underline" href="/projects/{projectId}">Follow it in run history</a>{/if}</p>{/if}
         {#each runResult.results as r (`${runResult.id}:${r.id}`)}
           <div class="flex items-start gap-3 px-3 py-2.5 border-b border-zinc-50 dark:border-zinc-900 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/60 transition-colors">
             {#if r.status === 'passed'}

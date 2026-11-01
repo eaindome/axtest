@@ -31,6 +31,7 @@
 
   let url = $state('')
   let saving = $state(false)
+  let error = $state('')
 
   const productionUrl = $derived(project?.baseUrl ?? '')
   const suggested = $derived(
@@ -39,6 +40,7 @@
 
   $effect(() => {
     if (!open) return
+    error = ''
     if (mode === 'edit' && currentUrl) url = currentUrl
     else if (mode === 'edit' && useProductionFallback) url = ''
     else url = suggested
@@ -88,6 +90,7 @@
           {/if}
         </div>
 
+        {#if error}<p class="error-banner" role="alert">{error}</p>{/if}
         <div class="flex flex-col gap-2">
           <Button
             size="sm"
@@ -95,7 +98,8 @@
             loading={saving}
             onclick={async () => {
               saving = true
-              try { await onSave(url.trim()) } finally { saving = false }
+              error = ''
+              try { await onSave(url.trim()) } catch (reason) { error = reason instanceof Error ? reason.message : 'Could not update the environment.' } finally { saving = false }
             }}
           >
             Save {envLabel(environment)} URL
@@ -107,7 +111,8 @@
             disabled={saving}
             onclick={async () => {
               saving = true
-              try { await onUseProduction() } finally { saving = false }
+              error = ''
+              try { await onUseProduction() } catch (reason) { error = reason instanceof Error ? reason.message : 'Could not update the environment.' } finally { saving = false }
             }}
           >
             Use production URL
@@ -118,7 +123,8 @@
               disabled={saving}
               onclick={async () => {
                 saving = true
-                try { await onDelete?.() } finally { saving = false }
+              error = ''
+                try { await onDelete?.() } catch (reason) { error = reason instanceof Error ? reason.message : 'Could not update the environment.' } finally { saving = false }
               }}
               class="text-xs text-red-500 hover:text-red-600 py-1 transition-colors disabled:opacity-50"
             >

@@ -7,7 +7,7 @@
   import Spinner from '$lib/components/ui/Spinner.svelte'
 
   if (browser) {
-    goto((!get(useMock) || get(authStore).token) ? '/dashboard' : '/login', { replaceState: true })
+    goto((!get(useMock) || get(authStore).user) ? '/dashboard' : '/login', { replaceState: true })
   }
 </script>
 

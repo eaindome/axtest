@@ -16,6 +16,8 @@
   import { resolveEffectiveUrl, needsEnvironmentSetup, isOverridableEnv } from '$lib/editor/resolve-env-url'
 
   import EditorToolbar from '$lib/components/editor/EditorToolbar.svelte'
+  import RunInputsPanel from '$lib/components/editor/RunInputsPanel.svelte'
+  import { runInputNames } from '$lib/editor/run-inputs'
   import EnvironmentSetupModal from '$lib/components/editor/EnvironmentSetupModal.svelte'
   import FileTree from '$lib/components/editor/FileTree.svelte'
   import CodeEditor from '$lib/components/editor/CodeEditor.svelte'
@@ -31,8 +33,20 @@
   const savedPanels = loadPanelSizes()
 
   let runController: AbortController | undefined
+  let inputNames = $state<string[]>([])
+  let resolveInputs: ((values: Record<string, string> | null) => void) | null = null
+  function finishInputs(values: Record<string, string> | null) {
+    inputNames = []; resolveInputs?.(values); resolveInputs = null
+  }
+  function requestInputs(): Promise<Record<string, string> | null> {
+    const names = runInputNames(editorContent, files)
+    if (!names.length) return Promise.resolve({})
+    inputNames = names
+    return new Promise(resolve => { resolveInputs = resolve })
+  }
+  onDestroy(() => finishInputs(null))
   onDestroy(() => runController?.abort())
-  beforeNavigate(({ cancel }) => { if (dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
+  beforeNavigate(({ cancel, willUnload }) => { if (!willUnload && dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
 
   let projects       = $state<Project[]>([])
   let activeProject  = $state<Project | null>(null)
@@ -377,6 +391,8 @@
     if (!activeProject || !activeFile) return
     await withEnvironmentReady(async () => {
       if (dirty && !(await saveFile())) return
+      const variables = await requestInputs()
+      if (variables === null) return
       runController = new AbortController()
       running = true
       resultsOpen = true
@@ -388,6 +404,7 @@
           fileName: activeFile!.name,
           content: editorContent,
           environment,
+          variables,
         }, { signal: runController?.signal, onProgress: result => { runResult = result } })
         runResult = result
         const status: FileRunStatus =
@@ -438,6 +455,8 @@
         const test = parsed.tests.find(t => t.id === testId)
         if (!test) return
         if (dirty && !(await saveFile())) return
+        const variables = await requestInputs()
+        if (variables === null) return
         resultsOpen = true
         runController = new AbortController()
         running = true
@@ -448,6 +467,7 @@
           content: editorContent,
           environment,
           testNames: [test.name],
+          variables,
         }, { signal: runController?.signal, onProgress: result => { runResult = result } })
       } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
       finally { running = false; runningTestId = null }
@@ -592,10 +612,13 @@
 
   onMount(() => {
     function beforeModeSwitch(event: Event) {
-      if (saving || running) { feedback = 'Wait for the current save or run to finish before switching context.'; event.preventDefault(); return }
+      if (saving || running || inputNames.length) { feedback = 'Finish or cancel the current run before switching context.'; event.preventDefault(); return }
       if (dirty && !window.confirm('Switch context and discard unsaved changes?')) { event.preventDefault(); return }
       dirty = false
     }
+    function beforeUnload(event: BeforeUnloadEvent) { if (dirty) { event.preventDefault(); event.returnValue = '' } }
+    window.addEventListener('beforeunload', beforeUnload)
+    window.addEventListener('axtest:before-signout', beforeModeSwitch)
     window.addEventListener('axtest:before-mode-switch', beforeModeSwitch)
     window.addEventListener('axtest:before-workspace-switch', beforeModeSwitch)
     function handleKey(e: KeyboardEvent) {
@@ -605,11 +628,13 @@
       }
     }
     window.addEventListener('keydown', handleKey)
-    return () => { window.removeEventListener('keydown', handleKey); window.removeEventListener('axtest:before-mode-switch', beforeModeSwitch); window.removeEventListener('axtest:before-workspace-switch', beforeModeSwitch) }
+    return () => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('keydown', handleKey); window.removeEventListener('axtest:before-signout', beforeModeSwitch); window.removeEventListener('axtest:before-mode-switch', beforeModeSwitch); window.removeEventListener('axtest:before-workspace-switch', beforeModeSwitch) }
   })
 </script>
 
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
+  {#if inputNames.length}<RunInputsPanel names={inputNames} onSubmit={values => finishInputs(values)} onCancel={() => finishInputs(null)} />{/if}
+  <div class="contents" inert={inputNames.length > 0}>
 
   {#if lessonBooting}
     <div class="flex-1 flex items-center justify-center">
@@ -726,6 +751,7 @@
       {/if}
 
       <ResultsPanel
+        projectId={activeProject?.id}
         open={resultsOpen}
         height={resultsHeight}
         {running}
@@ -765,4 +791,5 @@
     {/if}
   </div>
   {/if}
+  </div>
 </div>

@@ -493,7 +493,9 @@
       <button type="button" onclick={() => createInContextFolder('file')} class="ctx-item">New file</button>
       <button type="button" onclick={() => createInContextFolder('folder')} class="ctx-item">New folder</button>
       <div class="my-1 border-t border-zinc-100 dark:border-zinc-800"></div>
+      {#if target.path !== 'auth' && target.path !== 'modules'}
       <button type="button" onclick={startRenameFromContext} class="ctx-item">Rename</button>
+      {/if}
       {#if canDeleteFolder(target.path)}
         <button type="button" onclick={deleteFromContext} class="ctx-item text-red-600 dark:text-red-400">Delete</button>
       {/if}
