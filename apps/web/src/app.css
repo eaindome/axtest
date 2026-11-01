@@ -16,7 +16,7 @@ a,
 [role="switch"] {
   cursor: pointer;
 }
-:focus-visible {
+:focus-visible:not([class*="focus:ring"]):not([class*="focus-visible:ring"]):not(.cm-content):not(.cm-editor) {
   outline: 2px solid #d97706;
   outline-offset: 3px;
 }
