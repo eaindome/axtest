@@ -643,7 +643,7 @@
 </script>
 
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
-  {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} onSubmit={(values, headed) => finishInputs(values, headed)} onCancel={() => finishInputs(null)} />{/if}
+  {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} scope={`${$currentWorkspace?.id}:${activeProject?.id}:${environment}`} onSubmit={(values, headed) => finishInputs(values, headed)} onCancel={() => finishInputs(null)} />{/if}
   <div class="contents" inert={runSetupOpen}>
 
   {#if lessonBooting}
