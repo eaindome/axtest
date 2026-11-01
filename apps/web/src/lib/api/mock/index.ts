@@ -16,6 +16,31 @@ import { mockGetEnvironments, mockUpsertEnvironment, mockDeleteEnvironment } fro
 import { forkTutorialSandboxProject, getSandboxProjects, resetLessonStarter } from './tutorial-sandbox'
 
 const delay = (ms = 350) => new Promise<void>(r => setTimeout(r, ms))
+const suiteAccounts = new Map<number, import('../types').TestAccount[]>()
+const suiteResults = new Map<number, RunDetail>()
+let nextSuiteRun = 100000
+const deletedProjects = new Set<number>()
+export const getTestAccounts = async (projectId: number) => { await delay(100); return suiteAccounts.get(projectId) ?? [] }
+export const saveTestAccount = async (projectId: number, data: import('../types').SaveTestAccountRequest) => {
+  const environments = await getEnvironments(projectId)
+  const account: import('../types').TestAccount = { id: crypto.randomUUID(), name: data.name, environment: data.environment, targetUrl: (environments.find(env => env.name === data.environment)?.effectiveUrl ?? '').replace(/\/$/, ''), variableNames: Object.keys(data.variables), updatedAt: new Date().toISOString() }
+  suiteAccounts.set(projectId, [...suiteAccounts.get(projectId) ?? [], account])
+  return account
+}
+export const deleteTestAccount = async (projectId: number, id: string) => { suiteAccounts.set(projectId, (suiteAccounts.get(projectId) ?? []).filter(account => account.id !== id)) }
+export const runSuites = async (projectId: number, data: import('../types').RunSuitesRequest): Promise<RunListItem[]> => {
+  const files = (await getExplorer(projectId)).files
+  const runs: RunDetail[] = []
+  for (const choice of data.files) {
+    const file = files.find(file => file.id === choice.fileId)
+    if ([...mockProjects, ...getSandboxProjects()].find(project => project.id === projectId)?.archivedAt) throw new Error('Restore this project before starting a run.')
+    if (!file) throw new Error('Suite file not found.')
+    const result = await simulateFileRun(file.path, file.content, data.environment, 'suite', choice.testNames)
+    result.id = nextSuiteRun++; result.suiteName = file.path
+    suiteResults.set(result.id, result); runs.push(result)
+  }
+  return runs
+}
 
 export const login = async (_data: LoginRequest): Promise<AuthResponse> => {
   await delay()
@@ -39,7 +64,7 @@ export const createWorkspace = async (name: string): Promise<Workspace> => {
 
 export const getProjects = async (_workspaceId: number): Promise<Project[]> => {
   await delay()
-  return [...mockProjects, ...getSandboxProjects()]
+  return [...mockProjects, ...getSandboxProjects()].filter(project => !deletedProjects.has(project.id))
 }
 
 export const createProject = async (_workspaceId: number, data: CreateProjectRequest): Promise<Project> => {
@@ -66,6 +91,25 @@ export const updateProject = async (_workspaceId: number, projectId: number, dat
   return { ...project }
 }
 
+export const archiveProject = async (_workspaceId: number, projectId: number) => {
+  await delay()
+  const project = [...mockProjects, ...getSandboxProjects()].find(item => item.id === projectId)
+  if (!project) throw new Error('Project not found.')
+  project.archivedAt = new Date().toISOString()
+}
+export const restoreProject = async (_workspaceId: number, projectId: number) => {
+  await delay()
+  const project = [...mockProjects, ...getSandboxProjects()].find(item => item.id === projectId)
+  if (!project) throw new Error('Project not found.')
+  project.archivedAt = null
+}
+export const deleteProject = async (_workspaceId: number, projectId: number) => {
+  await delay()
+  const project = [...mockProjects, ...getSandboxProjects()].find(item => item.id === projectId)
+  if (!project?.archivedAt) throw new Error('Archive the project before permanently deleting it.')
+  deletedProjects.add(projectId)
+}
+
 export const getRuns = async (_projectId: number, _page = 1): Promise<RunListItem[]> => {
   await delay()
   return mockRuns
@@ -73,7 +117,7 @@ export const getRuns = async (_projectId: number, _page = 1): Promise<RunListIte
 
 export const getRun = async (_projectId: number, id: number): Promise<RunDetail> => {
   await delay()
-  return id === mockRunDetail.id ? mockRunDetail : { ...mockRunDetail, id }
+  return suiteResults.get(id) ?? (id === mockRunDetail.id ? mockRunDetail : { ...mockRunDetail, id })
 }
 
 export const getExplorer = async (projectId: number): Promise<ProjectExplorer> => {
@@ -138,6 +182,7 @@ export const generateTests = async (_projectId: number, data: GenerateTestsReque
 }
 
 export const runFile = async (_projectId: number, req: RunFileRequest, options: import('../types').RunExecutionOptions = {}): Promise<RunDetail> => {
+  if ([...mockProjects, ...getSandboxProjects()].find(project => project.id === _projectId)?.archivedAt) throw new Error('Restore this project before starting a run.')
   const result = await simulateFileRun(req.fileName, req.content, req.environment, 'ekow@ssmas.com', req.testNames)
   options.signal?.throwIfAborted()
   options.onProgress?.(result)

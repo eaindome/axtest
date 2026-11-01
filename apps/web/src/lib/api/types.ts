@@ -13,6 +13,7 @@ export interface Workspace {
 }
 
 export interface Project {
+  archivedAt?: string | null
   id: number
   name: string
   baseUrl: string | null
@@ -55,6 +56,10 @@ export interface ResultItem {
 export interface RunDetail extends RunListItem {
   results: ResultItem[]
 }
+
+export interface TestAccount { id: string; name: string; environment: EnvironmentName; targetUrl: string; variableNames: string[]; updatedAt: string }
+export interface SaveTestAccountRequest { name: string; environment: EnvironmentName; variables: Record<string, string> }
+export interface RunSuitesRequest { environment: EnvironmentName; files: { fileId: string; testNames?: string[] }[]; accountId?: string; headed?: boolean; variables?: Record<string, string> }
 
 export interface AuthResponse {
   token?: string

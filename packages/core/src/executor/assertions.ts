@@ -396,7 +396,8 @@ async function getElementText(
   scope?: string,
 ): Promise<string> {
   const ctx = await getScopedContext(page, scope)
-  const control = ctx.getByLabel(target, { exact: true })
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const control = ctx.getByLabel(new RegExp(`^${escaped}\\s*\\*?$`))
   if (await control.count()) {
     const element = control.first()
     const tag = await element.evaluate((e) => e.tagName.toLowerCase())

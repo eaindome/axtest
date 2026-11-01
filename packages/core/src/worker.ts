@@ -94,16 +94,10 @@ async function main(input: Input): Promise<unknown> {
   }
   for (const test of selected) visit(test)
   file.tests = ordered
-  if (input.command === 'validate')
-    return {
-      testCount: ordered.length,
-      testNames: ordered.map((t) => t.description),
-      selectedTests: ordered.map((t) => ({ id: t.id, name: t.description })),
-    }
-  if (input.command !== 'run') throw new Error('Unknown worker command.')
+  if (!['run', 'validate'].includes(input.command)) throw new Error('Unknown worker command.')
   if (
-    !input.baseUrl ||
-    !['http:', 'https:'].includes(new URL(input.baseUrl).protocol)
+    input.command === 'run' && (!input.baseUrl ||
+    !['http:', 'https:'].includes(new URL(input.baseUrl).protocol))
   )
     throw new Error('A valid HTTP(S) environment URL is required.')
   const auth = new Map<string, FileContext>(),
@@ -140,6 +134,25 @@ async function main(input: Input): Promise<unknown> {
       map.set(alias, flow)
     }
   }
+  if (input.command === 'validate') {
+    if (input.files) {
+      for (const test of ordered) {
+        const name = test.auth ?? file.auth
+        if (name && !file.isFlow && !auth.has(name)) throw new Error(`AUTH "${name}" not found. Check your auth/ folder.`)
+      }
+      if (file.module && !file.isFlow && !modules.has(file.module)) throw new Error(`MODULE "${file.module}" not found.`)
+    }
+    const required = new Set<string>()
+    function collect(value: unknown, key = '') {
+      if (key === 'raw') return
+      if (typeof value === 'string') for (const match of value.matchAll(/\{\{(AXTEST_[A-Z0-9_]+)\}\}/g)) required.add(match[1])
+      else if (Array.isArray(value)) value.forEach(entry => collect(entry))
+      else if (value && typeof value === 'object') Object.entries(value).forEach(([name, entry]) => collect(entry, name))
+    }
+    for (const context of [file, ...new Set(auth.values()), ...new Set(modules.values())])
+      for (const test of context.tests) { collect(test.setup); collect(test.stepGroups) }
+    return { testCount: ordered.length, testNames: ordered.map(test => test.description), selectedTests: ordered.map(test => ({ id: test.id, name: test.description })), requiredVariables: [...required].sort() }
+  }
   const abort = new AbortController()
   const parentPid = process.ppid
   const watch = setInterval(() => {
@@ -161,7 +174,7 @@ async function main(input: Input): Promise<unknown> {
       auth,
       modules,
       {
-        baseUrl: input.baseUrl,
+        baseUrl: input.baseUrl!,
         artifactDirectory: input.artifactDirectory,
         signal: abort.signal,
         headed: input.headed === true,

@@ -83,8 +83,17 @@ export const createProject = (workspaceId: number, data: CreateProjectRequest) =
 export const updateProject = (workspaceId: number, projectId: number, data: CreateProjectRequest) =>
   request<Project>(`/api/workspaces/${workspaceId}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify(data) })
 
+export const archiveProject = (workspaceId: number, projectId: number) => request<void>(`/api/workspaces/${workspaceId}/projects/${projectId}/archive`, { method: 'POST' })
+export const restoreProject = (workspaceId: number, projectId: number) => request<void>(`/api/workspaces/${workspaceId}/projects/${projectId}/restore`, { method: 'POST' })
+export const deleteProject = (workspaceId: number, projectId: number) => request<void>(`/api/workspaces/${workspaceId}/projects/${projectId}`, { method: 'DELETE' })
+
 export const getRuns = (projectId: number, page = 1) =>
   request<RunListItem[]>(`/api/projects/${projectId}/runs?page=${page}`)
+
+export const getTestAccounts = (projectId: number) => request<import('./types').TestAccount[]>(`/api/projects/${projectId}/test-accounts`)
+export const saveTestAccount = (projectId: number, data: import('./types').SaveTestAccountRequest) => request<import('./types').TestAccount>(`/api/projects/${projectId}/test-accounts`, { method: 'POST', body: JSON.stringify(data) })
+export const deleteTestAccount = (projectId: number, id: string) => request<void>(`/api/projects/${projectId}/test-accounts/${id}`, { method: 'DELETE' })
+export const runSuites = (projectId: number, data: import('./types').RunSuitesRequest) => request<RunListItem[]>(`/api/projects/${projectId}/runs/batch`, { method: 'POST', body: JSON.stringify(data) })
 
 export const getRun = (projectId: number, id: number) =>
   request<RunDetail>(`/api/projects/${projectId}/runs/${id}`)
