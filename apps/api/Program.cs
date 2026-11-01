@@ -55,6 +55,7 @@ builder.Services.AddScoped<ProjectAccess>();
 builder.Services.AddScoped<ExplorerService>();
 builder.Services.AddSingleton<RunnerProcess>();
 builder.Services.AddSingleton<RunInputs>();
+builder.Services.AddScoped<TestAccountSecrets>();
 if (builder.Configuration.GetValue("Runner:Enabled", builder.Environment.IsDevelopment())) builder.Services.AddHostedService<RunWorker>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
