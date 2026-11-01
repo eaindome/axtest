@@ -4,7 +4,7 @@
   import { currentWorkspace } from '$lib/stores/workspace'
   import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
   import { globalProjects } from '$lib/stores/search'
-  import Badge from '$lib/components/ui/Badge.svelte'
+  import { onMount } from 'svelte'
   import Spinner from '$lib/components/ui/Spinner.svelte'
   import type { RunListItem, Project } from '$lib/api'
   type WorkspaceRun = RunListItem & { projectId: number; projectName: string }
@@ -26,7 +26,7 @@
       const list = await api().getProjects(workspaceId)
       const results = await Promise.allSettled(list.map(async p => (await api().getRuns(p.id)).map(r => ({ ...r, projectId: p.id, projectName: p.name }))))
       if (id !== requestId) return
-      projects = list; globalProjects.set(list)
+      projects = list.filter(project => !project.archivedAt); globalProjects.set(projects)
       runs = results.flatMap(r => r.status === 'fulfilled' ? r.value : []).sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
       if (results.some(r => r.status === 'rejected')) error = 'Some run history could not be loaded. Please try again.'
     } catch { if (id === requestId) error = 'We couldn’t load your workspace. Check your connection and try again.' }
@@ -37,8 +37,29 @@
   const failing = $derived(completed.filter(r => r.status === 'failed').length)
   const average = $derived(completed.length ? completed.reduce((n, r) => n + r.durationMs, 0) / completed.length : 0)
   function duration(ms: number) { return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s` }
-  function status(s: string): 'pass' | 'fail' | 'running' | 'pending' { return s === 'passed' ? 'pass' : s === 'failed' ? 'fail' : s === 'running' ? 'running' : 'pending' }
-  function date(value: string) { return new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+  let now = $state(Date.now())
+  onMount(() => {
+    const timer = setInterval(() => { now = Date.now() }, 60_000)
+    return () => clearInterval(timer)
+  })
+  function date(value: string) { return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }
+  function relativeDate(value: string, currentTime: number) {
+    const minutes = Math.max(0, Math.floor((currentTime - Date.parse(value)) / 60_000))
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+    const days = Math.floor(hours / 24)
+    if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
+    const started = new Date(value)
+    return started.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(started.getFullYear() !== new Date(currentTime).getFullYear() ? { year: 'numeric' } : {}) })
+  }
+  function statusColor(value: string) {
+    if (value === 'passed') return 'text-emerald-600 dark:text-emerald-400'
+    if (value === 'failed') return 'text-red-600 dark:text-red-400'
+    if (value === 'running') return 'text-sky-600 dark:text-sky-400'
+    return 'text-zinc-500 dark:text-zinc-400'
+  }
 </script>
 
 <div class="flex-1 overflow-auto bg-zinc-50/80 dark:bg-zinc-950">
@@ -63,23 +84,52 @@
       </div>
       <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
         <section class="surface overflow-hidden">
-          <div class="px-5 py-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3"><div><h2 class="section-heading">Recent activity</h2><p class="text-xs text-zinc-500 mt-1">Latest runs across your projects</p></div><span class="text-xs text-zinc-500">{runs.length} loaded runs</span></div>
+          <div class="px-5 py-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3"><div><h2 class="section-heading">Recent activity</h2><p class="text-xs text-zinc-500 mt-1">Latest runs across your projects</p></div><span class="text-xs text-zinc-500 shrink-0">Showing latest {Math.min(runs.length, 5)} {runs.length === 1 ? 'run' : 'runs'}</span></div>
           {#if !runs.length}
             <div class="px-6 py-14 text-center"><p class="section-heading">Your first run starts here</p><p class="page-description mb-5">Open a project, write a test, and see your results here.</p><a class="action-link primary" href="/editor">Open test editor</a></div>
           {:else}
-            {#each runs.slice(0, 8) as run}
-              <a href="/projects/{run.projectId}" class="flex items-center gap-4 px-5 py-4 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <Badge variant={status(run.status)}>{run.status}</Badge>
-                <div class="min-w-0 flex-1"><p class="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{run.suiteName ?? 'Test run'}</p><p class="text-xs text-zinc-500 mt-1 truncate">{run.projectName} / {run.environment}</p></div>
-                <div class="text-right shrink-0"><p class="text-sm font-medium tabular-nums text-zinc-700 dark:text-zinc-200">{run.passedTests}<span class="text-zinc-400"> / {run.totalTests}</span></p><p class="text-xs text-zinc-500 mt-1">{duration(run.durationMs)}</p></div>
-                <time datetime={run.startedAt} class="hidden md:block text-xs text-zinc-500 w-28 text-right">{date(run.startedAt)}</time>
+            {#each runs.slice(0, 5) as run}
+              <a href="/projects/{run.projectId}/history" class="group flex items-start gap-3.5 px-5 py-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/50 transition-colors">
+                <span class="mt-0.5 size-8 flex items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-700 shrink-0 {statusColor(run.status)}" aria-hidden="true">
+                  <svg class="size-4 {run.status === 'running' ? 'animate-spin' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    {#if run.status === 'passed'}<path d="m5 12 4 4L19 6" />
+                    {:else if run.status === 'failed'}<path d="m7 7 10 10M17 7 7 17" />
+                    {:else if run.status === 'running'}<path d="M12 3a9 9 0 1 1-9 9" />
+                    {:else}<circle cx="12" cy="12" r="8" /><path d="M12 8v4l2 2" />{/if}
+                  </svg>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">{run.suiteName ?? 'Test run'}</p>
+                      <p class="text-xs mt-1 capitalize {statusColor(run.status)}">{run.status}</p>
+                    </div>
+                    <time datetime={run.startedAt} title={date(run.startedAt)} class="text-xs text-zinc-500 dark:text-zinc-400 shrink-0 pt-0.5">{relativeDate(run.startedAt, now)}</time>
+                  </div>
+                  <div class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    <p class="min-w-0 truncate">{run.projectName}<span class="mx-2 text-zinc-300 dark:text-zinc-600" aria-hidden="true">·</span><span class="capitalize">{run.environment}</span></p>
+                    <p class="shrink-0 tabular-nums">
+                      <span class="font-medium text-zinc-700 dark:text-zinc-300">{run.passedTests} of {run.totalTests} passed</span>
+                      {#if run.status === 'passed' || run.status === 'failed'}<span class="mx-2 text-zinc-300 dark:text-zinc-600" aria-hidden="true">·</span>{duration(run.durationMs)}{/if}
+                    </p>
+                  </div>
+                </div>
               </a>
             {/each}
           {/if}
+          {#if runs.length}
+            <div class="px-5 py-4 border-t border-zinc-100 dark:border-zinc-800"><a href="/runs" class="text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline">View run history</a></div>
+          {/if}
         </section>
         <div class="space-y-5">
-          <section class="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-6"><p class="eyebrow">From idea to assertion</p><h2 class="text-xl font-semibold tracking-tight mt-3 text-zinc-900 dark:text-zinc-100">Write it. Run it.<br />Know it works.</h2><p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 mt-3 mb-5">Describe the steps your users take. Build confidence with a repeatable test.</p><a href="/editor" class="action-link primary w-full">Write a test</a><a href="/docs?lesson=tutorial-1-create-file" class="block text-center text-xs font-medium text-amber-800 dark:text-amber-400 mt-4">Or follow the hands-on tutorial</a></section>
-          <section class="surface p-5"><div class="flex items-center justify-between mb-4"><h2 class="section-heading">Your projects</h2><a href="/projects" class="text-xs text-amber-700 dark:text-amber-400 font-medium">View all</a></div>{#each projects.slice(0, 4) as project}<a href="/editor?project={project.id}" class="flex items-center gap-3 py-3 border-t border-zinc-100 dark:border-zinc-800"><span class="size-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-semibold text-zinc-500 text-sm shrink-0">{project.name.slice(0, 2).toUpperCase()}</span><div class="min-w-0 flex-1"><p class="text-sm font-medium truncate text-zinc-800 dark:text-zinc-200">{project.name}</p><p class="text-xs text-zinc-500 truncate">{project.baseUrl ?? 'No URL configured'}</p></div></a>{:else}<p class="text-sm text-zinc-500">Create a project to organize your tests.</p>{/each}</section>
+          <section class="surface p-6">
+            <p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">From idea to assertion</p>
+            <h2 class="text-xl font-semibold leading-snug tracking-tight mt-2 text-zinc-900 dark:text-zinc-100">Turn a user journey into a test</h2>
+            <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 mt-3 mb-5">Describe the steps your users take, then check that everything works as expected.</p>
+            <a href="/editor" class="action-link primary w-full">Write a test</a>
+            <a href="/docs?lesson=tutorial-1-create-file" class="block text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 mt-4">Follow the hands-on tutorial</a>
+          </section>
+          <section class="surface p-5"><div class="flex items-center justify-between mb-4"><h2 class="section-heading">Your projects</h2><a href="/projects" class="text-xs text-amber-700 dark:text-amber-400 font-medium">View all</a></div>{#each projects.slice(0, 4) as project}<a href="/projects/{project.id}" class="flex items-center gap-3 py-3 border-t border-zinc-100 dark:border-zinc-800"><span class="size-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-semibold text-zinc-500 text-sm shrink-0">{project.name.slice(0, 2).toUpperCase()}</span><div class="min-w-0 flex-1"><p class="text-sm font-medium truncate text-zinc-800 dark:text-zinc-200">{project.name}</p><p class="text-xs text-zinc-500 truncate">{project.baseUrl ?? 'No URL configured'}</p></div></a>{:else}<p class="text-sm text-zinc-500">Create a project to organize your tests.</p>{/each}</section>
         </div>
       </div>
     {/if}
