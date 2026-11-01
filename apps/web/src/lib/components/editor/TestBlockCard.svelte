@@ -14,6 +14,7 @@
   import { parseAssertion, serializeAssertion } from '$lib/editor/parse-assertion'
 
   interface Props {
+    flow?: boolean
     test: TestBlock
     index: number
     allTests: TestBlock[]
@@ -36,6 +37,7 @@
   }
 
   let {
+    flow = false,
     test,
     index,
     allTests,
@@ -152,14 +154,15 @@
       onclick={onSelect}
       class="flex-1 min-w-0 text-sm font-semibold text-zinc-800 dark:text-zinc-100 bg-transparent outline-none
              focus:bg-white dark:focus:bg-zinc-900 focus:px-2 focus:-mx-2 focus:rounded transition-all"
-      placeholder="Test name"
+      placeholder={flow ? 'Flow name' : 'Test name'}
+      aria-label={flow ? 'Flow name' : 'Test name'}
     />
 
     <button
       type="button"
       onclick={onRun}
       disabled={running || generating}
-      title="Run this test"
+      title={flow ? 'Run this flow' : 'Run this test'}
       class="h-7 px-2 flex items-center gap-1 rounded-md text-xs font-medium shrink-0 transition-colors
              text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-200
              disabled:opacity-50"
@@ -195,7 +198,7 @@
       </button>
     {/if}
 
-    <button
+    {#if !flow}<button
       type="button"
       onclick={onDelete}
       aria-label="Delete test"
@@ -204,12 +207,12 @@
       <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
-    </button>
+    </button>{/if}
   </div>
 
   {#if !collapsed}
     <!-- Kind & depends on -->
-    <div class="px-4 py-2 border-b border-zinc-50 dark:border-zinc-800/80 space-y-2">
+    {#if !flow}<div class="px-4 py-2 border-b border-zinc-50 dark:border-zinc-800/80 space-y-2">
       <div class="flex items-center gap-2">
         <span class="text-xs text-zinc-400 shrink-0 w-20">Kind</span>
         <Dropdown
@@ -237,6 +240,7 @@
       </div>
     </div>
 
+    {/if}
     <!-- Steps -->
     <div class="px-4 pt-3 pb-2">
       <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Steps</p>
@@ -276,6 +280,11 @@
 
             {#if step.type === 'navigate'}
               <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="path or URL" class={inputCls} />
+            {:else if step.type === 'wait'}
+              <input aria-label="Wait target" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="element / label" class={inputCls} />
+              <Dropdown value={step.value === 'disappear' ? 'disappear' : 'appear'} options={[{ value: 'appear', label: 'Appear' }, { value: 'disappear', label: 'Disappear' }]} onchange={value => onUpdateStep('steps', step.id, { value })} />
+            {:else if step.type === 'custom'}
+              <input aria-label="Axtest action" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="Axtest action" class={inputCls} />
             {:else if step.type === 'click'}
               <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="button / label" class={inputCls} />
               <input value={step.context} oninput={(e) => onUpdateStep('steps', step.id, { context: (e.target as HTMLInputElement).value })} placeholder="in row (optional)" class="w-32 {inputCls}" />

@@ -32,7 +32,7 @@
   }: Props = $props()
 
   const visibleTests = $derived(
-    parsed?.tests.filter(t => matchesKindFilter(t.kind, kindFilter)) ?? []
+    parsed?.tests.filter(t => parsed.flow || matchesKindFilter(t.kind, kindFilter)) ?? []
   )
 
   const hasKindTags = $derived(parsed?.tests.some(t => t.kind !== '') ?? false)

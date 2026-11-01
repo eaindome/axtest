@@ -6,7 +6,7 @@
 
   interface Props {
     parsed: ParsedFile
-    onMetaChange: (field: 'title' | 'baseUrl' | 'auth', value: string) => void
+    onMetaChange: (field: 'title' | 'baseUrl' | 'auth' | 'module', value: string) => void
     onRulesChange: (rules: Rule[]) => void
   }
 
@@ -31,7 +31,10 @@
         <input value={parsed.baseUrl} oninput={(e) => onMetaChange('baseUrl', (e.target as HTMLInputElement).value)} placeholder="https://..." class={inputCls} />
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-zinc-400 w-14 shrink-0">AUTH</span>
+        <span class="text-xs text-zinc-400 w-14 shrink-0">{parsed.flow === 'module' ? 'MODULE' : 'AUTH'}</span>
+        {#if parsed.flow}
+          <input aria-label="Flow reference" value={parsed.flow === 'auth' ? parsed.auth : parsed.module ?? ''} oninput={event => onMetaChange(parsed.flow === 'auth' ? 'auth' : 'module', event.currentTarget.value)} class={inputCls} />
+        {:else}
         <Dropdown
           value={parsed.auth}
           options={AUTH_OPTIONS}
@@ -40,6 +43,7 @@
           class="flex-1"
           onchange={(v) => onMetaChange('auth', v)}
         />
+        {/if}
       </div>
     </div>
   </div>

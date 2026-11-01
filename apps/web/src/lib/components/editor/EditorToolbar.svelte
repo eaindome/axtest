@@ -4,7 +4,7 @@
   import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
   import { darkMode } from '$lib/stores/theme'
   import { ENV_OPTIONS } from '$lib/editor/step-options'
-  import { isOverridableEnv, envLabel } from '$lib/editor/resolve-env-url'
+  import { envLabel } from '$lib/editor/resolve-env-url'
   import type { Project, TestFile, EnvironmentName } from '$lib/api'
 
   interface Props {
@@ -59,7 +59,7 @@
     projects.map(p => ({ value: String(p.id), label: p.name }))
   )
 
-  const canEditEnv = $derived(isOverridableEnv(environment))
+  const canEditEnv = $derived(!!activeProject)
 </script>
 
 {#snippet divider()}
@@ -138,15 +138,13 @@
       size="md"
       onchange={onEnvironmentChange}
     />
-    {#if effectiveUrl || (canEditEnv && environmentNeedsSetup)}
       <button
         type="button"
-        onclick={() => canEditEnv && onEditEnvironment()}
+        onclick={onEditEnvironment}
         disabled={!canEditEnv}
-        title={canEditEnv
-          ? (environmentNeedsSetup ? `Set up ${envLabel(environment)} URL` : 'Edit environment URL')
-          : 'Production URL is set on the project'}
-        class="hidden 2xl:flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border text-sm truncate
+        title={`Configure ${envLabel(environment)} URL${effectiveUrl ? `: ${effectiveUrl}` : ''}`}
+        aria-label={`Edit ${envLabel(environment)} URL`}
+        class="flex items-center max-w-[220px] h-9 px-2.5 rounded-lg border text-sm truncate
                {canEditEnv && environmentNeedsSetup
                  ? 'border-dashed border-amber-300/80 dark:border-amber-700/80 bg-amber-50/50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-300 font-medium hover:border-amber-400'
                  : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-zinc-500 dark:text-zinc-400'}
@@ -154,12 +152,11 @@
                {!canEditEnv ? 'opacity-80 cursor-default' : ''}"
       >
         {#if canEditEnv && environmentNeedsSetup}
-          Set {envLabel(environment)} URL…
+          Set URL
         {:else}
-          {effectiveUrl}
+          Edit URL
         {/if}
       </button>
-    {/if}
   </div>
 
   {@render divider()}

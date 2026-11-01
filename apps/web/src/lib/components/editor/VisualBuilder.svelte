@@ -86,7 +86,7 @@
     if (patch.kind === 'seed') {
       tests = tests.map(t => t.id !== testId && t.kind === 'seed' ? { ...t, kind: '' } : t)
     }
-    apply({ ...parsed, tests })
+    apply({ ...parsed, tests, ...(parsed.flow && patch.name !== undefined ? { [parsed.flow === 'auth' ? 'auth' : 'module']: patch.name } : {}) })
   }
 
   function deleteTest(testId: string) {
@@ -117,8 +117,8 @@
     onSelectTest(nt.id)
   }
 
-  function updateMeta(field: 'title' | 'baseUrl' | 'auth', value: string) {
-    apply({ ...parsed, [field]: value })
+  function updateMeta(field: 'title' | 'baseUrl' | 'auth' | 'module', value: string) {
+    apply({ ...parsed, [field]: value, ...(parsed.flow && field === (parsed.flow === 'auth' ? 'auth' : 'module') ? { tests: parsed.tests.map(test => ({ ...test, name: value })) } : {}) })
   }
 
   function updateRules(rules: Rule[]) {
@@ -128,7 +128,7 @@
   const visibleTests = $derived(
     parsed.tests
       .map((test, index) => ({ test, index }))
-      .filter(({ test }) => matchesKindFilter(test.kind, kindFilter))
+      .filter(({ test }) => parsed.flow || matchesKindFilter(test.kind, kindFilter))
   )
 
   const hasKindTags = $derived(parsed.tests.some(t => t.kind !== ''))
@@ -137,7 +137,7 @@
     { value: 'setup' as const, label: 'File setup' },
     {
       value: 'tests' as const,
-      label: 'Test cases',
+      label: parsed.flow ? 'Flow steps' : 'Test cases',
       badge: parsed.tests.length > 0 ? parsed.tests.length : undefined,
     },
   ])
@@ -165,7 +165,7 @@
             <TestKindFilterBar tests={parsed.tests} value={kindFilter} onchange={onKindFilterChange} compact />
           </div>
         {:else if parsed.tests.length > 0}
-          <p class="text-sm text-zinc-400 dark:text-zinc-500">{parsed.tests.length} test{parsed.tests.length === 1 ? '' : 's'}</p>
+          <p class="text-sm text-zinc-400 dark:text-zinc-500">{parsed.flow ? 'Reusable flow' : `${parsed.tests.length} test${parsed.tests.length === 1 ? '' : 's'}`}</p>
         {/if}
       </div>
     </div>
@@ -194,13 +194,16 @@
               <button type="button" onclick={() => onKindFilterChange('all')} class="block mx-auto mt-2 text-xs text-amber-600 hover:text-amber-700">Show all</button>
             </div>
           {:else}
-            {#if seedCount === 0}
+            {#if parsed.flow}
+              <p class="text-sm text-zinc-500">{parsed.flow === 'auth' ? 'Authentication flow' : 'Reusable module flow'}. Its steps run when another spec references this flow.</p>
+            {:else if seedCount === 0}
               <p class="text-xs text-zinc-400 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30 rounded-lg px-3 py-2">
                 Tip: mark one test as <span class="font-medium text-violet-600 dark:text-violet-400">Seed</span>, run it, then generate variants.
               </p>
             {/if}
             {#each visibleTests as { test, index: ti } (test.id)}
               <TestBlockCard
+                flow={!!parsed.flow}
                 {test}
                 index={ti}
                 allTests={parsed.tests}
@@ -224,7 +227,7 @@
             {/each}
           {/if}
 
-          {#if parsed.tests.length > 0}
+          {#if parsed.tests.length > 0 && !parsed.flow}
             <button
               type="button"
               onclick={addTest}

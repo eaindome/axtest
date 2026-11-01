@@ -5,7 +5,7 @@
 
   interface Props {
     open: boolean
-    environment: 'staging' | 'local'
+    environment: EnvironmentName
     project: Project | null
     mode?: 'setup' | 'edit'
     currentUrl?: string | null
@@ -35,7 +35,7 @@
 
   const productionUrl = $derived(project?.baseUrl ?? '')
   const suggested = $derived(
-    environment === 'local' ? defaultLocalUrl() : suggestStagingUrl(productionUrl)
+    environment === 'production' ? productionUrl : environment === 'local' ? defaultLocalUrl() : suggestStagingUrl(productionUrl)
   )
 
   $effect(() => {
@@ -64,7 +64,7 @@
         <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
           {#if mode === 'setup'}
             This is the first time you're running tests against <strong class="font-medium text-zinc-700 dark:text-zinc-300">{envLabel(environment)}</strong>.
-            Set a base URL for this environment, or use your production URL for now.
+            Set a base URL for this environment.{environment !== 'production' ? ' You can also use your production URL.' : ''}
           {:else}
             Update the base URL used when running tests against {envLabel(environment)}.
           {/if}
@@ -83,7 +83,7 @@
             class="w-full text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800
                    text-zinc-800 dark:text-zinc-100 px-3 py-2 outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400/60"
           />
-          {#if productionUrl}
+          {#if productionUrl && environment !== 'production'}
             <p class="text-xs text-zinc-400 mt-1.5">
               Production URL: <span class="font-mono">{productionUrl}</span>
             </p>
@@ -104,7 +104,7 @@
           >
             Save {envLabel(environment)} URL
           </Button>
-          <Button
+          {#if environment !== 'production'}<Button
             variant="secondary"
             size="sm"
             class="w-full"
@@ -117,6 +117,7 @@
           >
             Use production URL
           </Button>
+          {/if}
           {#if mode === 'edit' && onDelete}
             <button
               type="button"
