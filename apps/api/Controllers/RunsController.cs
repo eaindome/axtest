@@ -50,7 +50,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
             Environment = req.Environment,
             TriggeredBy = "editor",
             TotalTests = count,
-            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files, runtimeKey }),
+            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files, runtimeKey, headed = req.Headed }),
         };
         db.TestRuns.Add(run);
         try { await db.SaveChangesAsync(); }
