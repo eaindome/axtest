@@ -29,21 +29,20 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         var file = await explorer.File(projectId, req.FileId);
         if (req.Content is null || req.Content.Length > 1_000_000) return BadRequest("Content must be at most 1 MB.");
         if (req.Environment is not ("production" or "staging" or "local")) return BadRequest("Unknown environment.");
-        string? url = project.BaseUrl;
-        if (req.Environment != "production")
-        {
-            var env = await db.ProjectEnvironments.FirstOrDefaultAsync(e => e.ProjectId == projectId && e.Name == req.Environment);
-            if (env is null) return BadRequest("Configure the selected environment before running tests.");
-            url = env.UseProductionFallback ? project.BaseUrl : env.BaseUrl;
-        }
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return BadRequest("A valid HTTP(S) environment URL is required.");
+        var url = await accounts.Url(project, req.Environment);
         if (await db.TestRuns.CountAsync(r => r.Status == RunStatus.Pending || r.Status == RunStatus.Running) >= 30) return StatusCode(429, "The run queue is full.");
-        var validation = await runner.Invoke(new { command = "validate", content = req.Content, fileName = file.Path, testNames = req.TestNames }, cancellation: HttpContext.RequestAborted);
-        var count = validation.GetProperty("testCount").GetInt32();
-        if (count > 500) return BadRequest("At most 500 tests can be submitted per run.");
         var files = await db.ProjectFiles.Where(f => f.ProjectId == projectId && !f.IsFolder && (f.Path.StartsWith("auth/") || f.Path.StartsWith("modules/")))
             .Select(f => new { path = f.Path, content = f.Content }).ToListAsync();
-        var runtimeKey = req.Variables?.Count > 0 ? inputs.Store(req.Variables) : null;
+        var validation = await runner.Invoke(new { command = "validate", content = req.Content, fileName = file.Path, testNames = req.TestNames, files }, cancellation: HttpContext.RequestAborted);
+        var count = validation.GetProperty("testCount").GetInt32();
+        if (count > 500) return BadRequest("At most 500 tests can be submitted per run.");
+        var values = await accounts.Resolve(projectId, req.Environment, url, req.AccountId, req.Variables);
+        var needed = validation.GetProperty("requiredVariables").EnumerateArray().Select(value => value.GetString()!).ToArray();
+        var runValues = values.Where(pair => needed.Contains(pair.Key)).ToDictionary();
+        if (needed.Contains("AXTEST_CASE") && !runValues.ContainsKey("AXTEST_CASE")) runValues["AXTEST_CASE"] = "editor-" + Guid.NewGuid().ToString("N")[..12];
+        var missing = needed.Where(name => !runValues.ContainsKey(name) || string.IsNullOrEmpty(runValues[name])).ToArray();
+        if (missing.Length > 0) return BadRequest($"Provide the required run inputs: {string.Join(", ", missing)}.");
+        var runtimeKey = runValues.Count > 0 ? inputs.Store(runValues) : null;
         var run = new TestRun
         {
             ProjectId = projectId,
