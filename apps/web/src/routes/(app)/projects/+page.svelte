@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api'
+  import { toast } from '$lib/stores/toasts'
   import { tick } from 'svelte'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
@@ -78,8 +79,8 @@
       if ($currentWorkspace?.id !== workspace.id) return
       projects = projects.map(item => item.id === project.id ? updated : item)
       globalProjects.set(projects.filter(item => !item.archivedAt))
-      closeDetails()
-    } catch (err) { detailsError = err instanceof Error ? err.message : 'Could not save project details.' }
+      closeDetails(); toast('Project details saved.')
+    } catch (err) { toast(err instanceof Error ? err.message : 'Could not save project details.', 'error') }
     finally { savingDetails = false }
   }
   async function changeLifecycle(project: Project, action: 'archive' | 'restore' | 'delete') {
@@ -95,8 +96,8 @@
       if ($currentWorkspace?.id !== workspace.id) return
       if (action === 'delete') projects = projects.filter(item => item.id !== project.id)
       else projects = projects.map(item => item.id === project.id ? { ...item, archivedAt: action === 'archive' ? new Date().toISOString() : null } : item)
-      globalProjects.set(projects.filter(item => !item.archivedAt))
-    } catch (err) { loadError = err instanceof Error ? err.message : 'Could not update the project.' }
+      globalProjects.set(projects.filter(item => !item.archivedAt)); toast(action === 'delete' ? 'Project deleted.' : action === 'archive' ? 'Project archived.' : 'Project restored.')
+    } catch (err) { toast(err instanceof Error ? err.message : 'Could not update the project.', 'error') }
     finally { lifecycleBusy = false }
   }
 

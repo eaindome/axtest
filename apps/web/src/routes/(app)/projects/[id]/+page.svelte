@@ -3,6 +3,7 @@
   import { beforeNavigate } from '$app/navigation'
   import { page } from '$app/stores'
   import { api } from '$lib/api'
+  import { toast } from '$lib/stores/toasts'
   import type { Project, ProjectEnvironment, TestAccount, TestFile, EnvironmentName, ProjectSetup, AccessCheck } from '$lib/api/types'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { authStore } from '$lib/stores/auth'
@@ -18,6 +19,7 @@
   import { normalizedUrl } from '$lib/suites'
   import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
 
+  $effect(() => { if (message) { toast(message); message = '' } })
   const projectId = $derived(Number($page.params.id))
   const environmentNames: EnvironmentName[] = ['local', 'staging', 'production']
   let project = $state<Project | null>(null), environments = $state<ProjectEnvironment[]>([]), accounts = $state<TestAccount[]>([]), files = $state<TestFile[]>([])
@@ -105,7 +107,7 @@
       const envs = await api().getEnvironments(projectId)
       if (current !== version) return
       environments = envs; url = savedUrl; connection = null; loginCheck = null; message = 'Address saved. Check the connection when your application is running.'; remember()
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save this environment. Your changes are still here.' }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'Could not save this environment. Your changes are still here.', 'error') }
     finally { saving = false }
   }
   async function saveAccess(patch: Partial<ProjectSetup>) {
@@ -115,7 +117,7 @@
       const saved = await api().saveProjectSetup(projectId, environment, { loginRequired: setup.loginRequired, loginFlowId: selectedFlow?.id ?? null, defaultAccountId: defaultAccount?.id ?? null, ...patch })
       if (current !== version) return false
       setups = { ...setups, [environment]: saved }; loginCheck = null; if (!verificationAccountId) verificationAccountId = saved.defaultAccountId ?? ''; remember(saved.defaultAccountId); message = 'Access settings saved.'; return true
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save access settings.'; return false }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'Could not save access settings.', 'error'); return false }
     finally { saving = false }
   }
   async function check(kind: 'connection' | 'login') {
@@ -129,7 +131,7 @@
       if (current !== version || contextKey !== verificationKey) return
       const checkedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       if (kind === 'connection') { connection = result; connectionCheckedAt = checkedAt } else { loginCheck = result; loginCheckedAt = checkedAt; loginCheckedName = checkedName }
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'The check could not complete. Try again.' }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'The check could not complete. Try again.', 'error') }
     finally { checking = null }
   }
   function openAccount(account: TestAccount | null = null) {
@@ -153,7 +155,7 @@
         const selected = await saveAccess({ defaultAccountId: saved.id })
         message = selected ? 'Test account saved and selected as the default.' : 'Account saved. Choose it as the default to finish setup.'
       } else message = 'Test account saved.'
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save the account. Your input is still here.' }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'Could not save the account. Your input is still here.', 'error') }
     finally { saving = false }
   }
   async function removeAccount(account: TestAccount) {
@@ -165,7 +167,7 @@
       accounts = accounts.filter(item => item.id !== account.id); loginCheck = null; if (verificationAccountId === account.id) verificationAccountId = defaultAccount?.id ?? ''
       if (setup.defaultAccountId === account.id) { setups = { ...setups, [environment]: { ...setup, defaultAccountId: null } }; remember(null) }
       message = 'Account deleted.'
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not delete the account.' }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'Could not delete the account.', 'error') }
     finally { saving = false }
   }
   function openBuilder() { builderOpen = true; loginPath = '/login'; usernameLabel = 'Username'; passwordLabel = 'Password'; submitLabel = 'Sign in'; successKind = 'visible'; successValue = ''; error = '' }
@@ -182,7 +184,7 @@
       if (current !== version) return
       files = [...files.filter(item => item.id !== saved.id), saved]; builderOpen = false
       const linked = await saveAccess({ loginRequired: true, loginFlowId: saved.id }); message = linked ? 'Login flow saved. Select a test account, then check login.' : 'Login flow file saved. Select it from the login flow list to finish setup.'
-    } catch (reason) { if (current === version) error = reason instanceof Error ? reason.message : 'Could not save the flow. Your steps are still here.' }
+    } catch (reason) { if (current === version) toast(reason instanceof Error ? reason.message : 'Could not save the flow. Your steps are still here.', 'error') }
     finally { saving = false }
   }
 </script>
@@ -192,7 +194,7 @@
   <ProjectNavigation {projectId} name={project?.name} active="configuration" />
   <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="eyebrow mb-2">Project setup</p><h1 class="page-heading">Configuration</h1><p class="page-description">Connect your application, set up access, and check that it works.</p></div>{#if !loading && project}<div class="space-y-1.5"><span class="block text-xs text-zinc-500">Configuring environment</span><DropdownMenu class="w-44" label="Configuration environment" value={environment} disabled={busy} options={environmentNames.map(name => ({ value: name, label: name[0].toUpperCase() + name.slice(1) }))} onchange={chooseEnvironment} /></div>{/if}</div>
   {#if $page.url.searchParams.get('needs')}<p class="surface p-4 text-sm text-zinc-600 dark:text-zinc-400" role="status">{$page.url.searchParams.get('needs') === 'environment' ? 'The selected tests need an application address. Save it below, then return to Test suites.' : `The selected tests need these inputs: ${$page.url.searchParams.get('inputs') ?? 'test account credentials'}. Choose or update the default account, then return to Test suites. Your test selection is preserved.`}</p>{/if}
-  {#if error && !accountOpen}<p class="error-banner" role="alert">{error}</p>{/if}{#if message}<p class="text-sm text-emerald-700 dark:text-emerald-400" role="status">{message}</p>{/if}
+  {#if error && !accountOpen}<p class="error-banner" role="alert">{error}</p>{/if}
   {#if loading}<div class="surface p-12 flex items-center justify-center gap-3" role="status"><Spinner size="sm" /><span class="text-sm text-zinc-500">Loading configuration…</span></div>
   {:else if project}
     {#if readOnly}<p class="surface p-4 text-sm text-zinc-600 dark:text-zinc-400">This project is archived. Restore it from Projects to change configuration or run tests.</p>{/if}
@@ -266,7 +268,7 @@
           <p class="text-xs text-zinc-500">Checks run from the API computer in a fresh background session. {$useMock ? 'Switch to API mode to verify the real application.' : 'Results apply to the current saved settings and account.'}</p>
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-3 border-t border-zinc-100 dark:border-zinc-800 px-5 py-4">{#if !readOnly}<a class="action-link primary" href={hasTests ? `/projects/${projectId}/suites` : `/editor?project=${projectId}`}>{hasTests ? 'Open test suites' : 'Create your first test'}</a>{/if}<p class="text-xs text-zinc-500">{setupComplete ? 'Your test suites reuse this saved configuration.' : 'You can write tests now and finish setup before running them.'}</p></div>
+      <div class="flex flex-wrap items-center gap-3 border-t border-zinc-100 dark:border-zinc-800 px-5 py-4">{#if !readOnly}<a class="action-link primary" href={hasTests ? `/projects/${projectId}/suites` : `/editor?project=${projectId}&newSuite=1`}>{hasTests ? 'Open test suites' : 'Create your first test'}</a>{/if}<p class="text-xs text-zinc-500">{setupComplete ? 'Your test suites reuse this saved configuration.' : 'You can write tests now and finish setup before running them.'}</p></div>
     </section>
   {:else}<a class="action-link" href="/projects">Open projects</a>{/if}
 </div></div>

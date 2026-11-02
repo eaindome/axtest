@@ -1,8 +1,14 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
-  import { beforeNavigate } from '$app/navigation'
+  import { onMount, onDestroy, untrack, tick } from 'svelte'
+  import { beforeNavigate, goto } from '$app/navigation'
   import { page } from '$app/stores'
   import { api } from '$lib/api'
+  import { toast } from '$lib/stores/toasts'
+  import { authStore } from '$lib/stores/auth'
+  import { suitePreferenceKey, readSuitePreferences, saveSuiteContext, savedEnvironment, reconcileSuiteSelection } from '$lib/suite-context'
+  import { selectedExecution, selectedInputNames, canUseVisualEditor, normalizedUrl, suiteLabel } from '$lib/suites'
+  import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
+  import type { TestAccount } from '$lib/api/types'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { parseAxtest, serializeAxtest } from '$lib/editor/parse-axtest'
   import { validateAxtest } from '$lib/editor/validate-axtest'
@@ -48,7 +54,8 @@
   }
   onDestroy(() => finishInputs(null))
   onDestroy(() => runController?.abort())
-  beforeNavigate(({ cancel, willUnload }) => { if (!willUnload && dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
+  let updatingRoute = false
+  beforeNavigate(({ cancel, willUnload }) => { if (!updatingRoute && !willUnload && dirty && !window.confirm("Leave this page and discard unsaved changes?")) cancel() })
 
   let projects       = $state<Project[]>([])
   let activeProject  = $state<Project | null>(null)
@@ -60,7 +67,18 @@
   let dirty          = $state(false)
   let dirtyFileIds   = $state<Set<string>>(new Set())
   let fileRunStatus  = $state<Record<string, FileRunStatus>>({})
-  let feedback = $state('')
+  function notifyError(error: unknown) { toast(error instanceof Error ? error.message : String(error), 'error') }
+  let draftSuite = $state(false), draftName = $state(''), draftError = $state('')
+  let accounts = $state<TestAccount[]>([]), accountId = $state(''), accountChoices = $state<Record<string, string>>({})
+  let showBrowser = $state(false)
+  let defaultAccounts = $state<Record<string, string | null>>({})
+  let runReadiness = $state<string[]>([])
+  let lastEditorRoute = ''
+  function contextKey(id = activeProject?.id) { return suitePreferenceKey($authStore.user?.id, $currentWorkspace?.id, id) }
+  function persistContext() { if (activeProject) saveSuiteContext(contextKey(), { environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId } }) }
+  const availableAccounts = $derived(accounts.filter(account => account.environment === environment && account.targetUrl === normalizedUrl(effectiveUrl)))
+  const account = $derived(availableAccounts.find(account => account.id === accountId))
+  const visualSafe = $derived(!activeFile || canUseVisualEditor({ ...activeFile, content: editorContent }))
   let saving         = $state(false)
   let running        = $state(false)
   let loadingFiles   = $state(true)
@@ -70,7 +88,7 @@
   let explorerWidth  = $state(savedPanels.explorer)
   let outlineWidth   = $state(savedPanels.outline)
   let mode           = $state<'code' | 'visual'>('code')
-  let environment    = $state<EnvironmentName>('staging')
+  let environment    = $state<EnvironmentName>('production')
   let projectEnvironments = $state<ProjectEnvironment[]>([])
   let envModalOpen = $state(false)
   let envModalMode = $state<'setup' | 'edit'>('setup')
@@ -98,18 +116,27 @@
   })
   const paramFilePath = $derived(() => $page.url.searchParams.get('file'))
   const paramLessonId = $derived(() => $page.url.searchParams.get('lesson'))
-  const paramMode = $derived(() => $page.url.searchParams.get('mode') as 'code' | 'visual' | null)
+  const paramMode = $derived(() => ($page.url.searchParams.get('view') ?? $page.url.searchParams.get('mode')) as 'code' | 'visual' | null)
+  function editorRoute() { return `${$currentWorkspace?.id}:${$page.url.search}` }
+  async function updateEditorUrl() {
+    if (!activeProject || !activeFile) return
+    const params = new URLSearchParams({ project: String(activeProject.id), file: activeFile.path })
+    lastEditorRoute = `${$currentWorkspace?.id}:?${params}`
+    updatingRoute = true
+    try { await goto(`/editor?${params}`, { replaceState: true, noScroll: true, keepFocus: true }) }
+    finally { updatingRoute = false }
+  }
   const inLessonMode = $derived(!!lessonId && isTutorialLessonId(lessonId))
 
   const validation = $derived(countDiagnostics(validateAxtest(editorContent)))
   const editorDiagnostics = $derived(validateAxtest(editorContent))
 
-  let codeEditor = $state<{ focusDiagnostic: (d: Diagnostic[], i: number, s?: 'error' | 'warning') => number } | undefined>()
+  let codeEditor = $state<{ focusTest: (name: string) => void; focusDiagnostic: (d: Diagnostic[], i: number, s?: 'error' | 'warning') => number } | undefined>()
   let diagnosticJumpIndex = $state(0)
 
   const testStatuses = $derived.by(() => {
     if (!runResult) return {} as Record<string, 'passed' | 'failed'>
-    const parsed = visualParsed ?? parsedContent
+    const parsed = (mode === 'visual' ? visualParsed : null) ?? parsedContent
     const map: Record<string, 'passed' | 'failed'> = {}
     for (const test of parsed.tests) {
       const r = runResult.results.find(res => res.testName === test.name)
@@ -147,24 +174,19 @@
   })
 
   $effect(() => {
-    const ws = $currentWorkspace
-    const lessonParam = paramLessonId()
-    if (!ws) return
-
-    if (lessonParam && isTutorialLessonId(lessonParam) && lessonParam !== lessonId && !lessonBooting) {
-      bootLessonPractice(lessonParam)
-      return
-    }
-
-    if (!lessonParam && lessonId) {
-      lessonId = null
-      lessonReady = false
-      sandboxProjectId = null
-    }
-
-    if (!lessonParam && !lessonBooting) {
-      loadProjects(ws.id)
-    }
+    const ws = $currentWorkspace, route = editorRoute()
+    if (!ws || route === lastEditorRoute) return
+    lastEditorRoute = route
+    untrack(() => {
+      const lessonParam = paramLessonId()
+      if (lessonParam && isTutorialLessonId(lessonParam)) { void bootLessonPractice(lessonParam); return }
+      lessonId = null; lessonReady = false; sandboxProjectId = null
+      void loadProjects(ws.id)
+    })
+  })
+  $effect(() => {
+    const editor = codeEditor, target = $page.url.searchParams.get('test')
+    if (editor && target && mode === 'code') untrack(() => { void tick().then(() => editor.focusTest(target)) })
   })
 
   function jumpToValidationIssue(severity: 'error' | 'warning') {
@@ -210,13 +232,18 @@
   }
 
   function handleEnvironmentChange(env: string) {
+    accountChoices = { ...accountChoices, [environment]: accountId }
     environment = env as EnvironmentName
-    if (isOverridableEnv(env) && needsEnvironmentSetup(env, projectEnvironments)) {
+    accountId = accountChoices[environment] ?? defaultAccounts[environment] ?? ''
+    if (!availableAccounts.some(account => account.id === accountId)) accountId = ''
+    runReadiness = []; persistContext()
+    if (inLessonMode && isOverridableEnv(env) && needsEnvironmentSetup(env, projectEnvironments)) {
       openEnvModal('setup', env)
     }
   }
 
   function openEditEnvironmentModal() {
+    if (!inLessonMode && activeProject) { persistContext(); void goto(`/projects/${activeProject.id}`); return }
     openEnvModal(environmentNeedsSetup ? 'setup' : 'edit', environment)
   }
 
@@ -267,7 +294,7 @@
       const target = pid ? projs.find(p => p.id === pid) : projs[0]
       if (target) await selectProject(target)
       else { activeProject = null; activeFile = null; files = []; explorerFolders = []; editorContent = ''; dirty = false }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
     finally { if (version === projectLoadVersion) loadingFiles = false }
   }
 
@@ -311,7 +338,7 @@
         dirty = false
         visualParsed = mode === 'visual' ? parseAxtest(updated.content) : visualParsed
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
     lessonResetting = false
   }
 
@@ -319,6 +346,7 @@
     if (running || saving) return
     if (dirty && !(await saveFile())) return
     activeProject = project
+    draftSuite = false; draftError = ''; runReadiness = []
     loadingFiles = true
     activeFile = null
     editorContent = ''
@@ -336,20 +364,39 @@
       files = explorer.files
       explorerFolders = explorer.folders
       await loadEnvironments(project.id)
+      accounts = await api().getTestAccounts(project.id)
+      const preferences = readSuitePreferences(contextKey(project.id))
+      environment = savedEnvironment(preferences.environment)
+      accountChoices = preferences.accountChoices ?? {}
+      const settings = await Promise.all((['production', 'staging', 'local'] as EnvironmentName[]).map(name => api().getProjectSetup(project.id, name)))
+      defaultAccounts = Object.fromEntries(settings.map(setup => [setup.environment, setup.defaultAccountId]))
+      const setup = settings.find(setup => setup.environment === environment)!
+      accountId = typeof preferences.accountId === 'string' ? preferences.accountId : setup.defaultAccountId ?? ''
+      if (!availableAccounts.some(account => account.id === accountId)) accountId = ''
+      mode = paramMode() === 'code' ? 'code' : 'visual'
+      if ($page.url.searchParams.has('newSuite')) {
+        const flow = files.find(file => file.id === setup.loginFlowId && setup.loginRequired)
+        draftSuite = true; draftName = ''
+        activeFile = { id: crypto.randomUUID(), name: 'Untitled suite', path: 'modules/untitled.axtest', content: '', updatedAt: '' }
+        editorContent = `---\ntitle: Untitled suite\n---\n# axtest:suite\n${flow ? `AUTH ${flow.path.slice(5).replace(/\.axtest$/, '')}\n` : ''}`
+        appendDraftTest(); loadingFiles = false; return
+      }
       if (files.length > 0) {
         const targetPath = preferredFilePath ?? paramFilePath()
         const fromQuery = targetPath
           ? files.find(f => f.path === targetPath || f.name === targetPath)
           : null
-        selectFile(fromQuery ?? files[0])
+        await selectFile(fromQuery ?? files[0])
+        if ($page.url.searchParams.has('addTest')) appendDraftTest()
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
     loadingFiles = false
   }
 
   async function selectFile(file: TestFile) {
     if (running || saving) return
     if (dirty && activeFile && !(await saveFile())) return
+    draftSuite = false
     activeFile = file
     editorContent = file.content
     dirty = false
@@ -357,7 +404,20 @@
     resultsOpen = false
     selectedTestId = null
     testKindFilter = 'all'
-    if (mode === 'visual') visualParsed = parseAxtest(file.content)
+    const parsed = parseAxtest(file.content)
+    if (!canUseVisualEditor(file)) mode = 'code'
+    if (mode === 'visual') visualParsed = parsed
+    const target = parsed.tests.find(test => test.name === $page.url.searchParams.get('test'))
+    if (target) { selectedTestId = target.id; await tick(); selectTest(target.id) }
+  }
+
+  function appendDraftTest() {
+    const id = crypto.randomUUID(), name = `New behaviour${parsedContent.tests.length ? ' ' + (parsedContent.tests.length + 1) : ''}`
+    editorContent = editorContent.trimEnd() + `\n\nTEST "${name}"\n  ID ${id}\nSTEPS\n  navigate to "/"\nASSERT\n  assert "" is_visible\n`
+    markDirty()
+    if (mode === 'visual') visualParsed = parseAxtest(editorContent)
+    selectedTestId = id
+    void tick().then(() => { selectTest(id); codeEditor?.focusTest(name) })
   }
 
   function markDirty() {
@@ -368,6 +428,7 @@
   }
 
   function onEdit(content: string) {
+    runReadiness = []
     editorContent = content
     markDirty()
     if (mode === 'visual') visualParsed = parseAxtest(content)
@@ -376,58 +437,90 @@
   async function saveFile() {
     if (!activeProject || !activeFile || !dirty) return true
     if (saving) return false
+    if (!parsedContent.flow && !parsedContent.tests.length && (draftSuite || /^[ \t]*TEST\s+/m.test(activeFile.content)) && !editorContent.includes('# axtest:suite')) editorContent += '\n# axtest:suite\n'
     const fileId = activeFile.id
+    const previousFile = activeFile
     const content = editorContent
-    feedback = ''
+
     saving = true
     try {
-      const updated = await api().saveFile(activeProject.id, { ...activeFile, content: editorContent })
+      let updated: TestFile
+      if (draftSuite) {
+        const title = draftName.trim()
+        if (!title || title.length > 80 || /[\r\n]/.test(title)) { draftError = 'Name this suite using up to 80 characters before saving.'; return false }
+        if (files.some(file => suiteLabel(file).toLowerCase() === title.toLowerCase())) { draftError = 'A suite with this name already exists.'; return false }
+        let slug = title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'suite'
+        if (files.some(file => file.path === `modules/${slug}.axtest`)) slug += '-' + crypto.randomUUID().slice(0, 6)
+        const source = editorContent.replace(/^title:.*$/m, `title: ${title}`)
+        updated = await api().createFile(activeProject.id, { name: slug, folder: 'modules', content: source })
+        files = [...files, updated]; draftSuite = false
+        if (editorContent === content) editorContent = source
+      } else updated = await api().saveFile(activeProject.id, { ...activeFile, content: editorContent }, activeFile.updatedAt)
       files = files.map(f => f.id === updated.id ? updated : f)
+      reconcileSuiteSelection(contextKey(), previousFile, updated)
       if (activeFile?.id === fileId) {
         activeFile = updated
-        dirty = editorContent !== content
+        dirty = editorContent !== content && editorContent !== updated.content
       }
       const next = new Set(dirtyFileIds)
-      if (!dirty) next.delete(updated.id)
+      if (!dirty) { next.delete(updated.id); next.delete(fileId) }
       dirtyFileIds = next
+      if (mode === 'visual') visualParsed = parseAxtest(editorContent)
+      await updateEditorUrl()
+      toast('Suite saved.')
       return !dirty
     } catch (error) {
-      feedback = error instanceof Error ? error.message : 'We couldn’t save this file. Your changes are still in the editor.'
+      notifyError(error instanceof Error ? error : 'We couldn’t save this file. Your changes are still in the editor.')
       return false
     } finally { saving = false }
   }
 
-  async function runTests() {
-    if (!activeProject || !activeFile) return
-    await withEnvironmentReady(async () => {
-      if (dirty && !(await saveFile())) return
-      const setup = await requestInputs()
-      if (setup === null) return
-      runController = new AbortController()
-      running = true
-      resultsOpen = true
-      runResult = null
-      const runFileId = activeFile!.id
-      try {
-        const result = await api().runFile(activeProject!.id, {
-          fileId: activeFile!.id,
-          fileName: activeFile!.name,
-          content: editorContent,
-          environment,
-          ...setup,
-        }, { signal: runController?.signal, onProgress: result => { runResult = result } })
-        runResult = result
-        const status: FileRunStatus =
-          result.status === 'passed' ? 'passed'
-          : result.passedTests === 0 ? 'failed'
-          : 'partial'
-        fileRunStatus = { ...fileRunStatus, [runFileId]: status }
-      } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
-      running = false
-    })
+  async function runTests() { await runEditor() }
+  async function runEditor(testId?: string) {
+    if (!activeProject || !activeFile || running || saving) return
+    const parsed = (mode === 'visual' ? visualParsed : null) ?? parsedContent
+    const test = testId ? parsed.tests.find(test => test.id === testId) : undefined
+    if (testId && !test) return
+    runReadiness = []
+    if (validation.errors) { runReadiness = ['Resolve the editor errors before running.']; return }
+    if (!effectiveUrl || environmentNeedsSetup) { runReadiness = ['Save an address for this environment in Configuration.']; return }
+    const source = { ...activeFile, content: editorContent }
+    const selection = { [source.id]: test ? [test.name] : parsed.tests.map(test => test.name) }
+    const allFiles = [...files.filter(file => file.id !== source.id), source]
+    const required = parsed.flow ? runInputNames(editorContent, files).filter(name => name !== 'AXTEST_CASE') : selectedInputNames(allFiles, selection)
+    const plan = parsed.flow ? { errors: [] } : selectedExecution(allFiles, selection)
+    const credentials = required.filter(name => !inLessonMode && /USERNAME|PASSWORD|TOKEN|SECRET|KEY/.test(name) && !account?.variableNames.includes(name))
+    runReadiness = [...plan.errors, ...(credentials.length ? [`Choose a saved account providing: ${credentials.join(', ')}.`] : [])]
+    if (runReadiness.length) return
+    if (dirty && !(await saveFile())) return
+    const extra = required.filter(name => !account?.variableNames.includes(name))
+    let setup: RunSetup = { variables: {}, headed: showBrowser }
+    if (extra.length) {
+      inputNames = extra; runSetupOpen = true
+      const values = await new Promise<RunSetup | null>(resolve => { resolveInputs = resolve })
+      if (!values) return
+      setup = values
+    }
+    persistContext(); runController = new AbortController(); running = true; runningTestId = testId ?? null; resultsOpen = true; runResult = null
+    const projectId = activeProject.id, file = activeFile
+    try {
+      if (parsed.flow) {
+        runResult = await api().runFile(projectId, { fileId: file.id, fileName: file.name, content: editorContent, environment, accountId: account?.id, ...setup }, { signal: runController.signal, onProgress: result => { runResult = result } })
+      } else {
+        const queued = await api().runSuites(projectId, { environment, accountId: account?.id, files: [{ fileId: file.id, ...(test ? { testNames: [test.name] } : {}) }], ...setup })
+        while (!runController.signal.aborted) {
+          runResult = await api().getRun(projectId, queued[0].id)
+          if (runResult.status === 'passed' || runResult.status === 'failed') break
+          await new Promise(resolve => setTimeout(resolve, 700))
+        }
+      }
+      if (runResult) fileRunStatus = { ...fileRunStatus, [file.id]: runResult.status === 'passed' ? 'passed' : runResult.passedTests === 0 ? 'failed' : 'partial' }
+    } catch (error) { notifyError(error) }
+    finally { running = false; runningTestId = null }
   }
 
   function switchToVisual() {
+    if (!visualSafe) { notifyError('This suite uses advanced syntax. Keep editing in Code to preserve its grouped flow.'); return }
     visualParsed = parseAxtest(editorContent)
     mode = 'visual'
   }
@@ -437,6 +530,7 @@
   }
 
   function onVisualChange(content: string, parsed?: ParsedFile) {
+    runReadiness = []
     editorContent = content
     markDirty()
     if (parsed) visualParsed = parsed
@@ -456,39 +550,13 @@
     collapsedTests = next
   }
 
-  async function runSingleTest(testId: string) {
-    if (!activeProject || !activeFile) return
-    await withEnvironmentReady(async () => {
-      runningTestId = testId
-      try {
-        const parsed = visualParsed ?? parsedContent
-        const test = parsed.tests.find(t => t.id === testId)
-        if (!test) return
-        if (dirty && !(await saveFile())) return
-        const setup = await requestInputs()
-        if (setup === null) return
-        resultsOpen = true
-        runController = new AbortController()
-        running = true
-        runResult = null
-        runResult = await api().runFile(activeProject!.id, {
-          fileId: activeFile!.id,
-          fileName: activeFile!.name,
-          content: editorContent,
-          environment,
-          testNames: [test.name],
-          ...setup,
-        }, { signal: runController?.signal, onProgress: result => { runResult = result } })
-      } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
-      finally { running = false; runningTestId = null }
-    })
-  }
+  async function runSingleTest(testId: string) { await runEditor(testId) }
 
   async function handleGenerateTests(testId: string) {
     if (!activeProject || !activeFile) return
     generatingTestId = testId
     try {
-      const draft = visualParsed ?? parsedContent
+      const draft = (mode === 'visual' ? visualParsed : null) ?? parsedContent
       if (!draft.tests.some(t => t.id === testId)) throw new Error('Select the test again before generating.')
       editorContent = serializeAxtest(draft)
       visualParsed = draft
@@ -509,7 +577,7 @@
         const firstGenerated = seedIdx >= 0 ? parsed.tests[seedIdx + 1] : null
         if (firstGenerated) selectTest(firstGenerated.id)
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
     finally { generatingTestId = null }
   }
 
@@ -521,7 +589,7 @@
       files = explorer.files
       explorerFolders = explorer.folders
       selectFile(file)
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleCreateFolder(path: string) {
@@ -530,7 +598,7 @@
       const explorer = await api().createFolder(activeProject.id, path)
       files = explorer.files
       explorerFolders = explorer.folders
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function applyExplorer(explorer: { files: TestFile[]; folders: string[] }) {
@@ -554,7 +622,7 @@
       dirtyFileIds = nextDirty
       const { [fileId]: _, ...rest } = fileRunStatus
       fileRunStatus = rest
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleRenameFile(fileId: string, name: string) {
@@ -563,7 +631,7 @@
       const updated = await api().renameFile(activeProject.id, fileId, { name })
       files = files.map(f => f.id === updated.id ? updated : f)
       if (activeFile?.id === fileId) activeFile = updated
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleMoveFile(fileId: string, folder: string | null) {
@@ -575,7 +643,7 @@
       if (activeFile?.id === fileId) {
         activeFile = files.find(f => f.id === fileId) ?? null
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleDeleteFolder(path: string) {
@@ -593,7 +661,7 @@
         visualParsed = activeFile ? parseAxtest(activeFile.content) : null
       }
       dirtyFileIds = new Set([...dirtyFileIds].filter(id => !deletedIds.includes(id)))
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleRenameFolder(path: string, name: string) {
@@ -605,7 +673,7 @@
         const refreshed = files.find(f => f.id === activeFile!.id)
         if (refreshed) activeFile = refreshed
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   async function handleMoveFolder(path: string, targetFolder: string | null) {
@@ -617,12 +685,12 @@
         const refreshed = files.find(f => f.id === activeFile!.id)
         if (refreshed) activeFile = refreshed
       }
-    } catch (error) { feedback = error instanceof Error ? error.message : 'Something went wrong. Please try again.' }
+    } catch (error) { notifyError(error instanceof Error ? error : 'Something went wrong. Please try again.') }
   }
 
   onMount(() => {
     function beforeModeSwitch(event: Event) {
-      if (saving || running || runSetupOpen) { feedback = 'Finish or cancel the current run before switching context.'; event.preventDefault(); return }
+      if (saving || running || runSetupOpen) { notifyError('Finish or cancel the current run before switching context.'); event.preventDefault(); return }
       if (dirty && !window.confirm('Switch context and discard unsaved changes?')) { event.preventDefault(); return }
       dirty = false
     }
@@ -646,9 +714,9 @@
   {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} scope={`${$currentWorkspace?.id}:${activeProject?.id}:${environment}`} onSubmit={(values, headed) => finishInputs(values, headed)} onCancel={() => finishInputs(null)} />{/if}
   <div class="contents" inert={runSetupOpen}>
 
-  {#if lessonBooting}
+  {#if lessonBooting || loadingFiles}
     <div class="flex-1 flex items-center justify-center">
-      <p class="text-sm text-zinc-500">Preparing your tutorial sandbox…</p>
+      <p class="text-sm text-zinc-500" role="status">{lessonBooting ? 'Preparing your tutorial sandbox…' : 'Opening suite editor…'}</p>
     </div>
   {:else}
 
@@ -676,8 +744,22 @@
     onEditEnvironment={openEditEnvironmentModal}
   />
 
-  {#if feedback}
-    <div class="error-banner mx-3 my-2 flex items-start justify-between gap-4" role="alert"><span>{feedback}</span><button aria-label="Dismiss message" class="font-semibold" onclick={() => feedback = ''}>×</button></div>
+  {#if activeProject && !inLessonMode}
+    <section class="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-5 py-3 space-y-3" aria-label="Suite editor context">
+      <div class="flex flex-wrap items-center gap-3">
+        <a class="text-xs font-medium text-amber-700 dark:text-amber-400" href={`/projects/${activeProject.id}/suites`}>Back to suites</a>
+        <span class="text-xs text-zinc-500">{activeFile ? draftSuite ? 'New suite draft' : suiteLabel(activeFile) : 'Choose a suite'}</span>
+        <span class="text-xs text-zinc-500" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes · saved before running' : 'All changes saved'}</span>
+        <div class="flex-1"></div>
+        <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
+        <label class="flex items-center gap-2 text-xs text-zinc-500"><input type="checkbox" bind:checked={showBrowser} disabled={running} />Show browser</label>
+        <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
+      </div>
+      <p class="text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>
+      {#if draftSuite}<div class="max-w-lg space-y-1"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
+      {#if runReadiness.length}<div class="text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
+      {#if !visualSafe && activeFile}<p class="text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
+    </section>
   {/if}
 
   <EnvironmentSetupModal
@@ -745,6 +827,7 @@
       {:else if visualParsed}
         <VisualBuilder
           parsed={visualParsed}
+          authOptions={[{ value: '', label: 'No login step' }, ...files.filter(file => file.path.startsWith('auth/') && !/^\s*TEST\s+/m.test(file.content)).map(file => ({ value: file.path.slice(5).replace(/\.axtest$/, ''), label: file.name.replace(/\.axtest$/, '') }))]}
           {selectedTestId}
           {collapsedTests}
           {runningTestId}

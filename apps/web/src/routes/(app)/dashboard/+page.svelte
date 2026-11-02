@@ -16,7 +16,7 @@
   $effect(() => { if ($currentWorkspace) load($currentWorkspace.id) })
   $effect(() => {
     pageTitle.set('Overview'); pageSubtitle.set('Your testing workspace')
-    pageAction.set({ label: 'Open test editor', onclick: () => goto('/editor') })
+    pageAction.set({ label: 'Open projects', onclick: () => goto('/projects') })
     return () => { pageTitle.set(''); pageSubtitle.set(''); pageAction.set(null) }
   })
   async function load(workspaceId: number) {
@@ -86,7 +86,7 @@
         <section class="surface overflow-hidden">
           <div class="px-5 py-5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3"><div><h2 class="section-heading">Recent activity</h2><p class="text-xs text-zinc-500 mt-1">Latest runs across your projects</p></div><span class="text-xs text-zinc-500 shrink-0">Showing latest {Math.min(runs.length, 5)} {runs.length === 1 ? 'run' : 'runs'}</span></div>
           {#if !runs.length}
-            <div class="px-6 py-14 text-center"><p class="section-heading">Your first run starts here</p><p class="page-description mb-5">Open a project, write a test, and see your results here.</p><a class="action-link primary" href="/editor">Open test editor</a></div>
+            <div class="px-6 py-14 text-center"><p class="section-heading">Your first run starts here</p><p class="page-description mb-5">Open a project, write a test, and see your results here.</p><a class="action-link primary" href="/projects">Open projects</a></div>
           {:else}
             {#each runs.slice(0, 5) as run}
               <a href="/projects/{run.projectId}/history" class="group flex items-start gap-3.5 px-5 py-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400/50 transition-colors">
@@ -126,7 +126,7 @@
             <p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">From idea to assertion</p>
             <h2 class="text-xl font-semibold leading-snug tracking-tight mt-2 text-zinc-900 dark:text-zinc-100">Turn a user journey into a test</h2>
             <p class="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 mt-3 mb-5">Describe the steps your users take, then check that everything works as expected.</p>
-            <a href="/editor" class="action-link primary w-full">Write a test</a>
+            <a href="/projects" class="action-link primary w-full">Choose a project</a>
             <a href="/docs?lesson=tutorial-1-create-file" class="block text-center text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 mt-4">Follow the hands-on tutorial</a>
           </section>
           <section class="surface p-5"><div class="flex items-center justify-between mb-4"><h2 class="section-heading">Your projects</h2><a href="/projects" class="text-xs text-amber-700 dark:text-amber-400 font-medium">View all</a></div>{#each projects.slice(0, 4) as project}<a href="/projects/{project.id}" class="flex items-center gap-3 py-3 border-t border-zinc-100 dark:border-zinc-800"><span class="size-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-semibold text-zinc-500 text-sm shrink-0">{project.name.slice(0, 2).toUpperCase()}</span><div class="min-w-0 flex-1"><p class="text-sm font-medium truncate text-zinc-800 dark:text-zinc-200">{project.name}</p><p class="text-xs text-zinc-500 truncate">{project.baseUrl ?? 'No URL configured'}</p></div></a>{:else}<p class="text-sm text-zinc-500">Create a project to organize your tests.</p>{/each}</section>
