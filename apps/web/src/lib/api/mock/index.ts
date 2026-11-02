@@ -27,7 +27,10 @@ export const saveTestAccount = async (projectId: number, data: import('../types'
   suiteAccounts.set(projectId, [...suiteAccounts.get(projectId) ?? [], account])
   return account
 }
-export const deleteTestAccount = async (projectId: number, id: string) => { suiteAccounts.set(projectId, (suiteAccounts.get(projectId) ?? []).filter(account => account.id !== id)) }
+export const deleteTestAccount = async (projectId: number, id: string) => {
+  suiteAccounts.set(projectId, (suiteAccounts.get(projectId) ?? []).filter(account => account.id !== id))
+  for (const [key, setup] of projectSetups) if (key.startsWith(`${projectId}:`) && setup.defaultAccountId === id) projectSetups.set(key, { ...setup, defaultAccountId: null })
+}
 export const runSuites = async (projectId: number, data: import('../types').RunSuitesRequest): Promise<RunListItem[]> => {
   const files = (await getExplorer(projectId)).files
   const runs: RunDetail[] = []
@@ -229,4 +232,24 @@ export const resetLessonFile = async (
 ): Promise<TestFile> => {
   await delay(200)
   return resetLessonStarter(projectId, data.lessonId)
+}
+
+const projectSetups = new Map<string, import('../types').ProjectSetup>()
+export const getProjectSetup = async (projectId: number, environment: import('../types').EnvironmentName): Promise<import('../types').ProjectSetup> => {
+  await delay(100)
+  return projectSetups.get(`${projectId}:${environment}`) ?? { environment, loginRequired: null, loginFlowId: null, defaultAccountId: null }
+}
+export const saveProjectSetup = async (projectId: number, environment: import('../types').EnvironmentName, data: Omit<import('../types').ProjectSetup, 'environment'>) => {
+  await delay(100)
+  const saved = { ...data, environment }; projectSetups.set(`${projectId}:${environment}`, saved); return saved
+}
+export const checkProjectConnection = async (_projectId: number, _environment: string): Promise<import('../types').AccessCheck> => ({ ok: false, url: '', message: 'Use API mode to check the real application.' })
+export const checkProjectLogin = async (_projectId: number, _environment: string, _accountId?: string): Promise<import('../types').AccessCheck> => ({ ok: false, url: '', message: 'Use API mode to check the real application.' })
+export const updateTestAccount = async (projectId: number, id: string, data: import('../types').SaveTestAccountRequest) => {
+  await delay(100)
+  const saved = suiteAccounts.get(projectId)?.find(account => account.id === id)
+  if (!saved) throw new Error('Account not found.')
+  const url = (await getEnvironments(projectId)).find(env => env.name === data.environment)?.effectiveUrl ?? ''
+  const updated = { ...saved, name: data.name, targetUrl: url.replace(/\/$/, ''), variableNames: [...new Set([...saved.variableNames, ...Object.keys(data.variables)])], updatedAt: new Date().toISOString() }
+  suiteAccounts.set(projectId, (suiteAccounts.get(projectId) ?? []).map(account => account.id === id ? updated : account)); return updated
 }

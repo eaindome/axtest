@@ -171,3 +171,6 @@ export interface RunExecutionOptions {
 }
 
 export interface SessionResponse { user: User | null; csrfToken: string; expiresAt?: string | null }
+
+export interface ProjectSetup { environment: EnvironmentName; loginRequired: boolean | null; loginFlowId: string | null; defaultAccountId: string | null }
+export interface AccessCheck { ok: boolean; url: string; message: string; statusCode?: number; detail?: string | null }

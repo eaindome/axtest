@@ -204,3 +204,9 @@ export const resetLessonFile = (projectId: number, data: import('./types').Reset
     `/api/projects/${projectId}/tutorial/reset-lesson`,
     { method: 'POST', body: JSON.stringify(data) },
   )
+
+export const getProjectSetup = (projectId: number, environment: string) => request<import('./types').ProjectSetup>(`/api/projects/${projectId}/setup/${environment}`)
+export const saveProjectSetup = (projectId: number, environment: string, data: Omit<import('./types').ProjectSetup, 'environment'>) => request<import('./types').ProjectSetup>(`/api/projects/${projectId}/setup/${environment}`, { method: 'PUT', body: JSON.stringify(data) })
+export const checkProjectConnection = (projectId: number, environment: string) => request<import('./types').AccessCheck>(`/api/projects/${projectId}/setup/${environment}/check-connection`, { method: 'POST' })
+export const checkProjectLogin = (projectId: number, environment: string, accountId?: string) => request<import('./types').AccessCheck>(`/api/projects/${projectId}/setup/${environment}/check-login${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`, { method: 'POST' })
+export const updateTestAccount = (projectId: number, accountId: string, data: import('./types').SaveTestAccountRequest) => request<import('./types').TestAccount>(`/api/projects/${projectId}/test-accounts/${accountId}`, { method: 'PUT', body: JSON.stringify(data) })
