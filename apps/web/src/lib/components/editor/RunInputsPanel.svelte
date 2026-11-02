@@ -4,9 +4,8 @@
   import { useMock } from '$lib/stores/dev'
   import { authStore } from '$lib/stores/auth'
   import { rememberedRunInputs, rememberRunInputs, clearRunInputs } from '$lib/stores/run-inputs'
-  let { names, targetUrl, scope, onSubmit, onCancel }: { names: string[], targetUrl: string, scope: string, onSubmit: (values: Record<string, string>, headed: boolean) => void, onCancel: () => void } = $props()
+  let { names, targetUrl, scope, onSubmit, onCancel }: { names: string[], targetUrl: string, scope: string, onSubmit: (values: Record<string, string>) => void, onCancel: () => void } = $props()
   let dialog = $state<HTMLDialogElement>()
-  let showBrowser = $state(false)
   let reuseInputs = $state(false)
   let hasRemembered = $state(false)
   const cacheScope = $derived(`${$useMock ? 'mock' : 'api'}:${$authStore.user?.id ?? 'anonymous'}:${scope}`)
@@ -25,7 +24,7 @@
     event.preventDefault()
     if (reuseInputs) rememberRunInputs(cacheScope, values)
     else if (names.length) clearRunInputs(cacheScope)
-    onSubmit({ ...values }, !$useMock && showBrowser)
+    onSubmit({ ...values })
     values = {}
   }
 </script>
@@ -47,10 +46,7 @@
     {#if hasRemembered}<button type="button" class="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={() => { clearRunInputs(cacheScope); resetValues() }}>Clear remembered inputs</button>{/if}
     <p class="mt-3 text-xs text-zinc-500">Screenshots are disabled for runs with inputs.</p>
     </section>{/if}
-    <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
-      <label class="flex items-center gap-3 text-sm font-medium"><input type="checkbox" bind:checked={showBrowser} disabled={$useMock} class="accent-amber-700" />Show browser during this run</label>
-      <p class="mt-2 text-xs text-zinc-500">{$useMock ? 'Mock mode simulates results. Switch to API mode to run tests in Chromium.' : 'Then click Start run. Chromium opens on the API computer when the queued run starts, and closes when finished.'}</p>
-    </div>
+    <p class="text-xs text-zinc-500">Browser visibility and speed use your saved Run settings.</p>
     <div class="flex gap-3"><Button type="submit">Start run</Button><Button variant="secondary" onclick={onCancel}>Cancel run</Button></div>
   </form>
 </div>
