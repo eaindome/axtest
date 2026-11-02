@@ -1,4 +1,6 @@
 <script lang="ts">
+  import RunSettings from './RunSettings.svelte'
+  import type { RunPreferences } from '$lib/run-preferences'
   import Button from '$lib/components/ui/Button.svelte'
   import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
@@ -6,7 +8,8 @@
   import { ENV_OPTIONS } from '$lib/editor/step-options'
   import { envLabel } from '$lib/editor/resolve-env-url'
   import type { Project, TestFile, EnvironmentName } from '$lib/api'
-  let { activeProject, projects, activeFile, dirty, saving, running, mode, environment, effectiveUrl, environmentNeedsSetup = false, validationErrors = 0, validationWarnings = 0, onJumpToError, onJumpToWarning, onSelectProject, onSwitchCode, onSwitchVisual, onSave, onRun, onEnvironmentChange, onEditEnvironment }: {
+  let { activeProject, projects, activeFile, dirty, saving, running, mode, environment, effectiveUrl, environmentNeedsSetup = false, validationErrors = 0, validationWarnings = 0, onJumpToError, onJumpToWarning, onSelectProject, onSwitchCode, onSwitchVisual, onSave, onRun, onEnvironmentChange, onEditEnvironment, runSettings, onRunSettings }: {
+    runSettings: RunPreferences; onRunSettings: (value: RunPreferences) => void
     activeProject: Project | null; projects: Project[]; activeFile: TestFile | null
     dirty: boolean; saving: boolean; running: boolean; mode: 'code' | 'visual'; environment: EnvironmentName; effectiveUrl: string; environmentNeedsSetup?: boolean
     validationErrors?: number; validationWarnings?: number; onJumpToError?: () => void; onJumpToWarning?: () => void
@@ -25,5 +28,6 @@
   <SegmentedControl value={mode} options={[{ value: 'code', label: 'Code' }, { value: 'visual', label: 'Visual' }]} onchange={value => value === 'code' ? onSwitchCode() : onSwitchVisual()} size="sm" ariaLabel="Editor mode" />
   <button type="button" aria-label="Toggle dark mode" class="size-8 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onclick={() => darkMode.update(value => !value)}>{$darkMode ? '☀' : '☾'}</button>
   <Button variant="secondary" size="sm" onclick={onSave} loading={saving} disabled={!dirty || running}>Save</Button>
+  <RunSettings value={runSettings} disabled={running || saving} onchange={onRunSettings} />
   <Button size="sm" onclick={onRun} loading={running} disabled={!activeFile || saving || validationErrors > 0}>Run this suite</Button>
 </header>
