@@ -59,7 +59,7 @@ export interface RunDetail extends RunListItem {
 
 export interface TestAccount { id: string; name: string; environment: EnvironmentName; targetUrl: string; variableNames: string[]; updatedAt: string }
 export interface SaveTestAccountRequest { name: string; environment: EnvironmentName; variables: Record<string, string> }
-export interface RunSuitesRequest { environment: EnvironmentName; files: { fileId: string; testNames?: string[] }[]; accountId?: string; headed?: boolean; variables?: Record<string, string> }
+export interface RunSuitesRequest { environment: EnvironmentName; files: { fileId: string; testNames?: string[] }[]; accountId?: string; headed?: boolean; slowMoMs?: number; variables?: Record<string, string> }
 
 export interface AuthResponse {
   token?: string
@@ -140,7 +140,7 @@ export interface RunFileRequest {
   environment: string
   testNames?: string[]
   variables?: Record<string, string>
-  headed?: boolean
+  headed?: boolean; slowMoMs?: number
   accountId?: string
 }
 
