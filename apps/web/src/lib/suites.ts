@@ -3,12 +3,21 @@ import { runInputNames } from '$lib/editor/run-inputs'
 import type { TestFile } from '$lib/api/types'
 import type { TestBlock } from '$lib/editor/types'
 
+// Keep large workspaces from reparsing unchanged sources on every selection change.
+const parsedFiles = new WeakMap<TestFile, { content: string; parsed: ReturnType<typeof parseAxtest> }>()
+function parsedFile(file: TestFile) {
+  const cached = parsedFiles.get(file)
+  if (cached?.content === file.content) return cached.parsed
+  const parsed = parseAxtest(file.content)
+  parsedFiles.set(file, { content: file.content, parsed })
+  return parsed
+}
 export function discoverSuites(files: TestFile[]) {
   return files.filter(file => /^[ \t]*TEST\s+/m.test(file.content) || /^# axtest:suite$/m.test(file.content))
-    .map(file => ({ ...file, parsed: parseAxtest(file.content) })).filter(file => !file.parsed.flow)
+    .map(file => ({ ...file, parsed: parsedFile(file) })).filter(file => !file.parsed.flow)
 }
 export function suiteLabel(file: TestFile) {
-  return parseAxtest(file.content).title || file.name.replace(/\.axtest$/i, '').replace(/[-_]/g, ' ').replace(/^./, value => value.toUpperCase())
+  return ((file as TestFile & { parsed?: ReturnType<typeof parseAxtest> }).parsed ?? parsedFile(file)).title || file.name.replace(/\.axtest$/i, '').replace(/[-_]/g, ' ').replace(/^./, value => value.toUpperCase())
 }
 export function testSources(file: TestFile) {
   const matches = [...file.content.matchAll(/^[ \t]*TEST[ \t]+/gm)]
