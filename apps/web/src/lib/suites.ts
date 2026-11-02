@@ -55,4 +55,12 @@ export function canEditBehaviour(file: TestFile, test: TestBlock) {
   const source = testSources(file).blocks[index]?.content ?? ''
   return !test.dependsOn.includes(',') && (source.match(/^[ \t]*STEPS\s*$/gm)?.length ?? 0) === 1 && (source.match(/^[ \t]*ASSERT\s*$/gm)?.length ?? 0) === 1 && !/^[ \t]*(?:SETUP|AUTH|GENERATED)\s+/m.test(source) && !test.steps.some(step => !['navigate','click','type','select','clear','wait'].includes(step.type)) && !test.asserts.some(step => step.type !== 'assert' || !/^(?:".*" (?:is_visible|is_not_visible|is_enabled|is_disabled|contains ".*")|url contains ".*")$/.test(step.assertion))
 }
+export function canUseVisualEditor(file: TestFile) {
+  const parsed = parseAxtest(file.content)
+  const blocks = parsed.flow ? [file.content] : testSources(file).blocks.map(block => block.content)
+  return blocks.every(source => (source.match(/^[ \t]*STEPS\s*$/gm)?.length ?? 0) <= 1
+    && (source.match(/^[ \t]*ASSERT\s*$/gm)?.length ?? 0) <= 1
+    && !/^[ \t]*SETUP\s*$/m.test(source)
+    && (parsed.flow || !/^[ \t]*(?:AUTH|MODULE)\s+/m.test(source)))
+}
 export function normalizedUrl(url: string) { try { return new URL(url).href.replace(/\/+$/, '') } catch { return url.replace(/\/+$/, '') } }
