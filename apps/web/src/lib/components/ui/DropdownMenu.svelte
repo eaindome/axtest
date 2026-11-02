@@ -1,8 +1,8 @@
 <script lang="ts">
   import { tick, type Snippet } from 'svelte'
   export interface MenuOption { value: string; label: string; href?: string; disabled?: boolean; danger?: boolean; separator?: boolean }
-  let { options, label, value, open = $bindable(false), id, onchange, trigger, class: cls = '' }: {
-    options: MenuOption[]; label: string; value?: string; open?: boolean; id?: string
+  let { options, label, value, open = $bindable(false), disabled = false, id, onchange, trigger, class: cls = '' }: {
+    options: MenuOption[]; label: string; value?: string; open?: boolean; disabled?: boolean; id?: string
     onchange?: (value: string) => void; trigger?: Snippet; class?: string
   } = $props()
   const generatedId = $props.id()
@@ -18,10 +18,11 @@
     position = { width, left: Math.max(8, Math.min(rect.left, innerWidth - width - 8)), top: rect.bottom + 6 + height <= innerHeight - 8 ? rect.bottom + 6 : Math.max(8, rect.top - height - 6) }
   }
   async function toggle() {
+    if (disabled) return
     if (open) { close(); return }
     open = true; place(); await tick(); place()
-    const selected = menu?.querySelector<HTMLElement>('[aria-selected="true"]')
-    ;(selected ?? menu?.querySelector<HTMLElement>('[data-option]:not(:disabled)'))?.focus()
+    const selected = menu?.querySelector<HTMLElement>('[aria-selected="true"]:not(:disabled)')
+    ;(selected ?? menu?.querySelector<HTMLElement>('[data-option]:not(:disabled)') ?? menu)?.focus()
   }
   function choose(option: MenuOption) { if (!option.disabled) { close(true); onchange?.(option.value) } }
   function keys(event: KeyboardEvent) {
@@ -45,7 +46,7 @@
 </script>
 
 <div bind:this={root} class="inline-flex {cls}">
-  <button bind:this={button} type="button" aria-label={label} aria-haspopup={selection ? 'listbox' : 'menu'} aria-expanded={open} aria-controls={open ? menuId : undefined} onclick={toggle} onkeydown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); if (!open) toggle() } }} class="{trigger ? 'size-8 justify-center text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' : 'h-10 gap-3 px-3 justify-between border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100'} inline-flex items-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400/50">
+  <button bind:this={button} type="button" {disabled} aria-label={label} aria-haspopup={selection ? 'listbox' : 'menu'} aria-expanded={open} aria-controls={open ? menuId : undefined} onclick={toggle} onkeydown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); if (!open) toggle() } }} class="{trigger ? 'size-8 justify-center text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' : 'h-10 w-full gap-3 px-3 justify-between border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100'} inline-flex items-center rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400/50">
     {#if trigger}{@render trigger()}{:else}<span>{options.find(option => option.value === value)?.label ?? label}</span><svg class="size-3.5 text-zinc-400 transition-transform duration-150 motion-reduce:transition-none {open ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8 10 4 4 4-4" /></svg>{/if}
   </button>
 </div>
