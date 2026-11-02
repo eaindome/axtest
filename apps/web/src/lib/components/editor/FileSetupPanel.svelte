@@ -1,16 +1,17 @@
 <script lang="ts">
-  import Dropdown from '$lib/components/ui/Dropdown.svelte'
+  import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import RulesEditor from './RulesEditor.svelte'
   import { AUTH_OPTIONS } from '$lib/editor/step-options'
   import type { ParsedFile, Rule } from '$lib/editor/types'
 
   interface Props {
+    authOptions?: { value: string; label: string }[]
     parsed: ParsedFile
     onMetaChange: (field: 'title' | 'baseUrl' | 'auth' | 'module', value: string) => void
     onRulesChange: (rules: Rule[]) => void
   }
 
-  let { parsed, onMetaChange, onRulesChange }: Props = $props()
+  let { parsed, onMetaChange, onRulesChange, authOptions = AUTH_OPTIONS }: Props = $props()
 
   const inputCls = 'flex-1 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md px-2.5 py-1.5 outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400/20'
 </script>
@@ -35,11 +36,9 @@
         {#if parsed.flow}
           <input aria-label="Flow reference" value={parsed.flow === 'auth' ? parsed.auth : parsed.module ?? ''} oninput={event => onMetaChange(parsed.flow === 'auth' ? 'auth' : 'module', event.currentTarget.value)} class={inputCls} />
         {:else}
-        <Dropdown
+        <DropdownMenu label="Suite login flow"
           value={parsed.auth}
-          options={AUTH_OPTIONS}
-          placeholder="None"
-          minWidth="180px"
+          options={authOptions}
           class="flex-1"
           onchange={(v) => onMetaChange('auth', v)}
         />

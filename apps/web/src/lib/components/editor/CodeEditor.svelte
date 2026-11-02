@@ -19,6 +19,17 @@
   let applyingExternal = false
   let lastExternal = $state('')
 
+  export function focusTest(name: string) {
+    if (!view) return
+    for (const match of value.matchAll(/^[ \t]*TEST[ \t]+"([^"\r\n]+)"/gm)) {
+      if (match[1] !== name) continue
+      const position = match.index ?? 0
+      view.dispatch({ selection: { anchor: position }, effects: EditorView.scrollIntoView(position, { y: 'center' }) })
+      view.focus()
+      return
+    }
+  }
+
   export function focusDiagnostic(
     diagnostics: Diagnostic[],
     index: number,

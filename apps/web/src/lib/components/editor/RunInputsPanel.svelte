@@ -36,7 +36,7 @@
   <form class="mt-5 space-y-5" onsubmit={submit}>
     {#if names.length}<section aria-label="Runtime inputs">
     <h3 class="text-sm font-medium mb-1">Run inputs</h3>
-    <p class="text-xs text-zinc-500 mb-4">Credentials for the application being tested. These are separate from your axtest sign-in.</p>
+    <p class="text-xs text-zinc-500 mb-4">Additional values required by this run. Saved test accounts are chosen in the editor.</p>
     <div class="grid sm:grid-cols-2 gap-4">
       {#each names as name}
         <Input label={name} bind:value={() => values[name] ?? '', value => { values[name] = value }} type={/PASSWORD|TOKEN|SECRET/.test(name) ? 'password' : 'text'} autocomplete="off" required />

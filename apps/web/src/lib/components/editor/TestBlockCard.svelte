@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Dropdown from '$lib/components/ui/Dropdown.svelte'
+  import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import Spinner from '$lib/components/ui/Spinner.svelte'
   import { STEP_META, type Step, type StepType, type TestBlock, type TestKind } from '$lib/editor/types'
   import { STEP_TYPE_OPTIONS, dependsOnOptions, reorder } from '$lib/editor/step-options'
@@ -174,7 +174,7 @@
           <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
         </svg>
       {/if}
-      Run
+      Run this test
     </button>
 
     {#if canGenerate && onGenerate}
@@ -215,11 +215,9 @@
     {#if !flow}<div class="px-4 py-2 border-b border-zinc-50 dark:border-zinc-800/80 space-y-2">
       <div class="flex items-center gap-2">
         <span class="text-xs text-zinc-400 shrink-0 w-20">Kind</span>
-        <Dropdown
+        <DropdownMenu label="Test kind"
           value={test.kind}
           options={TEST_KIND_OPTIONS}
-          placeholder="Manual"
-          minWidth="160px"
           class="flex-1"
           onchange={(v) => onUpdate({ kind: v as TestKind })}
         />
@@ -229,11 +227,9 @@
       {/if}
       <div class="flex items-center gap-2">
         <span class="text-xs text-zinc-400 shrink-0 w-20">Depends on</span>
-        <Dropdown
-          value={test.dependsOn}
+        <DropdownMenu label="Test prerequisite"
+          value={allTests.find(item => item.id === test.dependsOn)?.name ?? test.dependsOn}
           options={dependsOpts}
-          placeholder="None"
-          minWidth="200px"
           class="flex-1"
           onchange={(v) => onUpdate({ dependsOn: v })}
         />
@@ -271,10 +267,9 @@
 
             <span class="text-xs font-mono text-zinc-300 dark:text-zinc-600 w-4 shrink-0">{si + 1}</span>
 
-            <Dropdown
+            <DropdownMenu label="Action type"
               value={step.type}
               options={STEP_TYPE_OPTIONS}
-              minWidth="110px"
               onchange={(v) => onUpdateStep('steps', step.id, { type: v as StepType })}
             />
 
@@ -282,7 +277,7 @@
               <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="path or URL" class={inputCls} />
             {:else if step.type === 'wait'}
               <input aria-label="Wait target" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="element / label" class={inputCls} />
-              <Dropdown value={step.value === 'disappear' ? 'disappear' : 'appear'} options={[{ value: 'appear', label: 'Appear' }, { value: 'disappear', label: 'Disappear' }]} onchange={value => onUpdateStep('steps', step.id, { value })} />
+              <DropdownMenu label="Wait condition" value={step.value === 'disappear' ? 'disappear' : 'appear'} options={[{ value: 'appear', label: 'Appear' }, { value: 'disappear', label: 'Disappear' }]} onchange={value => onUpdateStep('steps', step.id, { value })} />
             {:else if step.type === 'custom'}
               <input aria-label="Axtest action" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="Axtest action" class={inputCls} />
             {:else if step.type === 'click'}
@@ -335,10 +330,9 @@
             <span class="text-xs font-mono text-zinc-300 dark:text-zinc-600 w-4 shrink-0">{ai + 1}</span>
 
             {#if parsed.type === 'custom'}
-              <Dropdown
+              <DropdownMenu label="Expected result type"
                 value="is_visible"
                 options={ASSERTION_TYPE_OPTIONS}
-                minWidth="140px"
                 onchange={(v) => onAssertionTypeChange(step.id, v as AssertionType)}
               />
               <input
@@ -349,10 +343,9 @@
               />
               <span class="text-xs text-amber-600 dark:text-amber-400 shrink-0" title="This line is not a recognized assertion pattern">Unrecognized</span>
             {:else}
-              <Dropdown
+              <DropdownMenu label="Expected result type"
                 value={parsed.type}
                 options={ASSERTION_TYPE_OPTIONS}
-                minWidth="140px"
                 onchange={(v) => onAssertionTypeChange(step.id, v as AssertionType)}
               />
 

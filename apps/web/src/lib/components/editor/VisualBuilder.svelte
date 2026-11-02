@@ -12,6 +12,7 @@
   type VisualPanel = 'setup' | 'tests'
 
   interface Props {
+    authOptions?: { value: string; label: string }[]
     parsed: ParsedFile
     selectedTestId: string | null
     collapsedTests: Set<string>
@@ -29,6 +30,7 @@
 
   let {
     parsed,
+    authOptions,
     selectedTestId,
     collapsedTests,
     runningTestId,
@@ -176,6 +178,7 @@
       {#if panel === 'setup'}
         <FileSetupPanel
           {parsed}
+          {authOptions}
           onMetaChange={updateMeta}
           onRulesChange={updateRules}
         />
@@ -184,7 +187,7 @@
           {#if parsed.tests.length === 0}
             <div class="text-center py-16">
               <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-1">No test cases yet</p>
-              <p class="text-xs text-zinc-400 mb-4">Configure the file first, then add your seed test.</p>
+              <p class="text-xs text-zinc-400 mb-4">Add a behaviour, its actions and an expected result.</p>
               <button type="button" onclick={() => (panel = 'setup')} class="text-xs text-amber-600 hover:text-amber-700 mr-3">File setup</button>
               <button type="button" onclick={addTest} class="text-xs font-medium text-amber-600 hover:text-amber-700">+ Add test</button>
             </div>
