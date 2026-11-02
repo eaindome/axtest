@@ -88,7 +88,7 @@ const API='http://localhost:5000',WEB='http://localhost:5173'
   assert.equal(await page.getByRole('button',{name:'Save address',exact:true}).isDisabled(),true)
   await page.getByRole('navigation',{name:'Project navigation'}).getByRole('link',{name:'Test suites',exact:true}).click()
   await page.getByRole('region',{name:'Suite selection',exact:true}).waitFor()
-  await page.getByRole('checkbox',{name:'Select suite modules/public.axtest',exact:true}).check()
+  await page.getByRole('checkbox',{name:'Select suite public',exact:true}).check()
   assert.equal(await page.getByRole('button',{name:'Run selected',exact:true}).isDisabled(),true)
   await page.goto(WEB+'/projects');await page.getByRole('button',{name:'Project status',exact:true}).click();await page.getByRole('option',{name:'Archived projects',exact:true}).click();await actions.click();await menu.getByRole('menuitem',{name:'Restore project',exact:true}).click()
   await page.getByRole('link',{name:project.name,exact:true}).waitFor({state:'hidden'});await page.getByRole('button',{name:'Project status',exact:true}).click();await page.getByRole('option',{name:'Active projects',exact:true}).click();await page.getByRole('link',{name:project.name,exact:true}).waitFor()
