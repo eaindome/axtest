@@ -104,10 +104,10 @@ export const getExplorer = (projectId: number) =>
 export const getFiles = async (projectId: number) =>
   (await getExplorer(projectId)).files
 
-export const saveFile = (projectId: number, file: TestFile) =>
+export const saveFile = (projectId: number, file: TestFile, expectedUpdatedAt?: string) =>
   request<TestFile>(`/api/projects/${projectId}/files/${file.id}`, {
     method: 'PUT',
-    body: JSON.stringify(file)
+    body: JSON.stringify({ ...file, expectedUpdatedAt })
   })
 
 export const createFile = (projectId: number, data: CreateFileRequest | string) =>

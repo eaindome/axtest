@@ -12,6 +12,7 @@ import { mockUser, mockToken, mockWorkspaces, mockProjects, mockRuns, mockRunDet
 import { mockGetExplorer, mockSaveFile, mockCreateFile, mockCreateFolder, mockDeleteFile, mockRenameFile, mockMoveFile, mockDeleteFolder, mockRenameFolder, mockMoveFolder } from './files'
 import { simulateFileRun } from './run-file'
 import { mockGenerateTests } from './generate-tests'
+import { discoverSuites, selectedExecution } from '$lib/suites'
 import { mockGetEnvironments, mockUpsertEnvironment, mockDeleteEnvironment } from './environments'
 import { forkTutorialSandboxProject, getSandboxProjects, resetLessonStarter } from './tutorial-sandbox'
 
@@ -34,11 +35,14 @@ export const deleteTestAccount = async (projectId: number, id: string) => {
 export const runSuites = async (projectId: number, data: import('../types').RunSuitesRequest): Promise<RunListItem[]> => {
   const files = (await getExplorer(projectId)).files
   const runs: RunDetail[] = []
+  const suites = discoverSuites(files)
+  const plan = selectedExecution(files, Object.fromEntries(data.files.map(choice => [choice.fileId, choice.testNames ?? suites.find(file => file.id === choice.fileId)?.parsed.tests.map(test => test.name) ?? []])))
+  if (plan.errors.length) throw new Error(plan.errors.join(' '))
   for (const choice of data.files) {
     const file = files.find(file => file.id === choice.fileId)
     if ([...mockProjects, ...getSandboxProjects()].find(project => project.id === projectId)?.archivedAt) throw new Error('Restore this project before starting a run.')
     if (!file) throw new Error('Suite file not found.')
-    const result = await simulateFileRun(file.path, file.content, data.environment, 'suite', choice.testNames)
+    const result = await simulateFileRun(file.path, file.content, data.environment, 'suite', plan.entries.find(entry => entry.file.id === file.id)?.tests.map(test => test.name) ?? choice.testNames)
     result.id = nextSuiteRun++; result.suiteName = file.path
     suiteResults.set(result.id, result); runs.push(result)
   }
@@ -133,15 +137,17 @@ export const getFiles = async (projectId: number): Promise<TestFile[]> => {
   return mockGetExplorer(projectId).files
 }
 
-export const saveFile = async (projectId: number, file: TestFile): Promise<TestFile> => {
+export const saveFile = async (projectId: number, file: TestFile, expectedUpdatedAt?: string): Promise<TestFile> => {
   await delay(200)
+  if (expectedUpdatedAt && mockGetExplorer(projectId).files.find(item => item.id === file.id)?.updatedAt !== expectedUpdatedAt) throw new Error('This suite changed since you opened it. Reopen the test before saving so other edits are preserved.')
   return mockSaveFile(projectId, file)
 }
 
 export const createFile = async (projectId: number, data: CreateFileRequest | string): Promise<TestFile> => {
   await delay(200)
   const req = typeof data === 'string' ? { name: data } : data
-  return mockCreateFile(projectId, req.name, req.folder)
+  const file = mockCreateFile(projectId, req.name, req.folder)
+  return req.content === undefined ? file : mockSaveFile(projectId, { ...file, content: req.content })
 }
 
 export const createFolder = async (projectId: number, path: string): Promise<ProjectExplorer> => {

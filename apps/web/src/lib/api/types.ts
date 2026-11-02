@@ -85,6 +85,7 @@ export interface CreateProjectRequest {
 }
 
 export interface CreateFileRequest {
+  content?: string
   name: string
   /** Parent folder path, e.g. `auth` or `modules`. Omit for project root. */
   folder?: string | null
