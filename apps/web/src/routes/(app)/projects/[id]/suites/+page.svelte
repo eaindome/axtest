@@ -7,9 +7,9 @@
   import type { Project, ProjectEnvironment, TestFile, TestAccount, EnvironmentName, RunDetail } from '$lib/api/types'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { authStore } from '$lib/stores/auth'
-  import { useMock, modeKey } from '$lib/stores/dev'
+  import { useMock } from '$lib/stores/dev'
   import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
-  import { discoverSuites, selectedInputNames, selectedExecution, suiteLabel, normalizedUrl } from '$lib/suites'
+  import { discoverSuites, selectedInputNames, selectedExecution, suiteLabel, normalizedUrl, testSources, canUseVisualEditor } from '$lib/suites'
   import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
   import Button from '$lib/components/ui/Button.svelte'
   import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
@@ -32,6 +32,9 @@
   let viewport = $state<HTMLDivElement>()
   let inputsOpen = $state(false), runValues = $state<Record<string, string>>({})
 
+  const suitePageSize = 8, testPageSize = 10
+  let suitePage = $state(1), testPage = $state(1), previewName = $state('')
+  let suiteList = $state<HTMLDivElement>(), testList = $state<HTMLDivElement>()
   const suites = $derived(discoverSuites(files))
   const filtered = $derived(suites.map(file => {
     const term = query.trim().toLowerCase(), wholeSuite = `${suiteLabel(file)} ${file.path}`.toLowerCase().includes(term)
@@ -42,11 +45,25 @@
   const count = $derived(chosen.reduce((total, entry) => total + entry.names.length, 0))
   const execution = $derived(selectedExecution(files, selection))
   const required = $derived(selectedInputNames(files, selection))
-  const visibleNames = $derived(Object.fromEntries(filtered.map(file => [file.id, file.visibleTests.map(test => test.name)])))
-  const visibleCount = $derived(filtered.reduce((sum, file) => sum + file.visibleTests.length, 0))
-  const allVisibleSelected = $derived(visibleCount > 0 && filtered.every(file => file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))))
-  const hiddenCount = $derived(chosen.reduce((sum, entry) => sum + entry.names.filter(name => !visibleNames[entry.file.id]?.includes(name)).length, 0))
+  const suitePageCount = $derived(Math.max(1, Math.ceil(filtered.length / suitePageSize)))
+  const currentSuitePage = $derived(Math.min(suitePage, suitePageCount))
+  const suiteStart = $derived((currentSuitePage - 1) * suitePageSize)
+  const pagedSuites = $derived(filtered.slice(suiteStart, suiteStart + suitePageSize))
+  const pageNames = $derived(Object.fromEntries(pagedSuites.map(file => [file.id, file.visibleTests.map(test => test.name)])))
+  const pageTestCount = $derived(pagedSuites.reduce((sum, file) => sum + file.visibleTests.length, 0))
+  const allPageSelected = $derived(pageTestCount > 0 && pagedSuites.every(file => file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))))
+  const searchNames = $derived(Object.fromEntries(filtered.map(file => [file.id, file.visibleTests.map(test => test.name)])))
+  const hiddenBySearchCount = $derived(chosen.reduce((sum, entry) => sum + entry.names.filter(name => !searchNames[entry.file.id]?.includes(name)).length, 0))
+  const offPageCount = $derived(chosen.filter(entry => !pagedSuites.some(file => file.id === entry.file.id)).reduce((sum, entry) => sum + entry.names.filter(name => searchNames[entry.file.id]?.includes(name)).length, 0))
   const activeTests = $derived(filtered.find(file => file.id === activeSuite)?.visibleTests ?? [])
+  const testPageCount = $derived(Math.max(1, Math.ceil(activeTests.length / testPageSize)))
+  const currentTestPage = $derived(Math.min(testPage, testPageCount))
+  const testStart = $derived((currentTestPage - 1) * testPageSize)
+  const pagedTests = $derived(activeTests.slice(testStart, testStart + testPageSize))
+  const allTestPageSelected = $derived(pagedTests.length > 0 && pagedTests.every(test => (selection[activeSuite] ?? []).includes(test.name)))
+  const preview = $derived(active?.parsed.tests.find(test => test.name === previewName))
+  const previewSource = $derived(active && preview ? testSources(active).blocks[active.parsed.tests.indexOf(preview)]?.content ?? '' : '')
+  const previewGrouped = $derived(active && preview ? !canUseVisualEditor({ ...active, content: previewSource }) : false)
 
   const targetUrl = $derived(resolveEffectiveUrl(environment, project, environments))
   const availableAccounts = $derived(accounts.filter(account => account.environment === environment && account.targetUrl === normalizedUrl(targetUrl)))
@@ -60,12 +77,12 @@
   const passed = $derived(results.reduce((total, run) => total + run.passedTests, 0))
   const failed = $derived(results.reduce((total, run) => total + run.failedTests, 0))
   const total = $derived(results.reduce((total, run) => total + run.totalTests, 0))
-  const readiness = $derived(count ? [...(!configured ? ['Save an address for this environment in Configuration.'] : []), ...(missingCredentials.length ? [`Choose a saved account providing: ${missingCredentials.join(', ')}.`] : []), ...(missingData.length ? [`Provide run inputs: ${missingData.join(', ')}.`] : []), ...execution.errors, ...execution.entries.filter(entry => entry.tests.length > 500).map(entry => `${suiteLabel(entry.file)} exceeds the limit of 500 tests per run.`)] : [])
+  const readiness = $derived(count ? [...(!configured ? ['Save an address for this environment in Configuration.'] : []), ...(missingCredentials.length ? [`Choose a saved account providing: ${missingCredentials.join(', ')}.`] : []), ...(missingData.length ? [`Provide run inputs: ${missingData.join(', ')}.`] : []), ...execution.errors, ...(chosen.length > 30 ? [`Choose up to 30 suites per batch; ${chosen.length} suites are selected.`] : []), ...execution.entries.filter(entry => entry.tests.length > 500).map(entry => `${suiteLabel(entry.file)} exceeds the limit of 500 tests per run.`)] : [])
   const control = 'h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400/40 focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
   function preferenceKey(id: number | string | undefined = project?.id) { return suitePreferenceKey($authStore.user?.id, $currentWorkspace?.id, id) }
   function persist() {
     if (!project) return
-    saveSuiteContext(preferenceKey(), { query, scrollTop: viewport?.scrollTop ?? 0, environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId }, selection, activeSuite, runIds: results.map(run => run.id), context })
+    saveSuiteContext(preferenceKey(), { query, suitePage: currentSuitePage, testPage: currentTestPage, scrollTop: viewport?.scrollTop ?? 0, environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId }, selection, activeSuite, runIds: results.map(run => run.id), context })
     localStorage.setItem(preferenceKey('project'), String(project.id))
   }
   function readPreferences(id: number) { return readSuitePreferences(preferenceKey(id)) }
@@ -82,7 +99,7 @@
   })
 
   async function loadWorkspace(workspaceId: number, projectId: number) {
-    const version = ++generation; pollGeneration++; loading = true; error = ''; results = []; project = null; projects = []; files = []; accounts = []; environments = []; selection = {}; runValues = {}
+    const version = ++generation; pollGeneration++; loading = true; error = ''; results = []; project = null; projects = []; files = []; accounts = []; environments = []; selection = {}; runValues = {}; previewName = ''
     try {
       const list = await api().getProjects(workspaceId)
       if (version !== generation) return
@@ -103,6 +120,8 @@
       files = explorer.files; environments = envs; accounts = savedAccounts; defaultAccounts = Object.fromEntries(settings.map(setup => [setup.environment, setup.defaultAccountId]))
       const preferences = readPreferences(id)
       query = typeof preferences.query === 'string' ? preferences.query : ''
+      suitePage = Number.isSafeInteger(preferences.suitePage) && preferences.suitePage > 0 ? preferences.suitePage : 1
+      testPage = Number.isSafeInteger(preferences.testPage) && preferences.testPage > 0 ? preferences.testPage : 1
       environment = ['production', 'staging', 'local'].includes(preferences.environment) ? preferences.environment : 'production'
       accountId = typeof preferences.accountId === 'string' && preferences.accountId ? preferences.accountId : defaultAccounts[environment] ?? ''
       accountChoices = preferences.accountChoices && typeof preferences.accountChoices === 'object' && Object.values(preferences.accountChoices).every(value => typeof value === 'string') ? preferences.accountChoices : {}
@@ -121,18 +140,29 @@
   }
   function message(reason: unknown) { return reason instanceof Error ? reason.message : 'Something went wrong. Please try again.' }
   function toggleSuite(id: string) {
-    const names = visibleNames[id] ?? []
+    const names = pageNames[id] ?? []
     if (!names.length) return
     const previous = selection[id] ?? [], all = names.every(name => previous.includes(name))
     selection = { ...selection, [id]: all ? previous.filter(name => !names.includes(name)) : [...new Set([...previous, ...names])] }; persist()
   }
   function toggleTest(id: string, name: string) { const names = selection[id] ?? []; selection = { ...selection, [id]: names.includes(name) ? names.filter(value => value !== name) : [...names, name] }; persist() }
-  function selectVisible() {
+  function selectSuitePage() {
     const next = { ...selection }
-    for (const file of filtered) { const previous = next[file.id] ?? [], names = file.visibleTests.map(test => test.name); next[file.id] = allVisibleSelected ? previous.filter(name => !names.includes(name)) : [...new Set([...previous, ...names])] }
+    for (const file of pagedSuites) { const previous = next[file.id] ?? [], names = file.visibleTests.map(test => test.name); next[file.id] = allPageSelected ? previous.filter(name => !names.includes(name)) : [...new Set([...previous, ...names])] }
     selection = next; persist()
   }
-  function search(value: string) { query = value; if (!filtered.some(file => file.id === activeSuite)) activeSuite = filtered[0]?.id ?? ''; persist() }
+  function search(value: string) { query = value; suitePage = 1; testPage = 1; previewName = ''; if (!pagedSuites.some(file => file.id === activeSuite)) activeSuite = pagedSuites[0]?.id ?? ''; resetLists(); persist() }
+  function resetLists() { if (suiteList) suiteList.scrollTop = 0; if (testList) testList.scrollTop = 0 }
+  function openSuite(id: string) { activeSuite = id; testPage = 1; previewName = ''; if (testList) testList.scrollTop = 0; persist() }
+  function changeSuitePage(value: number) { suitePage = Math.max(1, Math.min(value, suitePageCount)); openSuite(pagedSuites[0]?.id ?? ''); resetLists(); persist() }
+  function changeTestPage(value: number) { testPage = Math.max(1, Math.min(value, testPageCount)); if (testList) testList.scrollTop = 0; persist() }
+  function selectTestPage() {
+    const previous = selection[activeSuite] ?? [], names = pagedTests.map(test => test.name)
+    selection = { ...selection, [activeSuite]: allTestPageSelected ? previous.filter(name => !names.includes(name)) : [...new Set([...previous, ...names])] }; persist()
+  }
+  function resultFor(name: string) { return results.find(run => run.suiteName === active?.path)?.results.find(result => result.testName === name) }
+  function statusClass(status?: string) { return status === 'passed' ? 'text-emerald-700 dark:text-emerald-400' : status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-zinc-500' }
+
   function mixed(node: HTMLInputElement, value: boolean) { node.indeterminate = value; return { update(next: boolean) { node.indeterminate = next } } }
   function openEditor(file?: TestFile, test?: string, add = false) {
     if (!project) return
@@ -202,16 +232,38 @@
       <section class="surface p-4 space-y-4" aria-label="Suite selection">
         <div class="flex items-center justify-between"><h2 class="section-heading">Suites <span class="font-normal text-zinc-400">{suites.length}</span></h2><button class="text-xs text-zinc-500" disabled={busy || !count} onclick={() => { selection = {}; persist() }}>Clear selection</button></div>
         <input class={`${control} w-full`} type="search" aria-label="Search suites" placeholder="Find a suite or behaviour" value={query} oninput={event => search(event.currentTarget.value)} />
-        <div class="flex items-center justify-between gap-3 text-xs"><span class="text-zinc-500">{visibleCount} visible tests</span><button class="font-medium text-amber-700 dark:text-amber-400" disabled={busy || !visibleCount} onclick={selectVisible}>{allVisibleSelected ? 'Deselect visible' : 'Select visible'}</button></div>
-        {#if hiddenCount}<p class="text-xs text-amber-700 dark:text-amber-400">{hiddenCount} selected test{hiddenCount === 1 ? '' : 's'} outside this search. They will still run.</p>{/if}
-        <p class="text-xs text-zinc-500">Names open suites. Checkboxes select visible tests.</p>
-        {#each filtered as file}<div class="flex items-start gap-3 rounded-lg border p-3 {activeSuite === file.id ? 'border-amber-600 bg-amber-50/30 dark:bg-amber-950/20' : 'border-zinc-200 dark:border-zinc-800'}"><input type="checkbox" class="mt-1 accent-amber-700" aria-label={`Select suite ${suiteLabel(file)}`} use:mixed={file.visibleTests.some(test => (selection[file.id] ?? []).includes(test.name)) && !file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))} checked={file.visibleTests.length > 0 && file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))} disabled={busy || !file.visibleTests.length} onchange={() => toggleSuite(file.id)} /><button class="min-w-0 flex-1 text-left" aria-label={`Open suite ${suiteLabel(file)}`} aria-current={activeSuite === file.id ? 'true' : undefined} onclick={() => { activeSuite = file.id; persist() }}><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 break-words">{suiteLabel(file)}</p><p class="text-xs text-zinc-500 mt-1">{file.parsed.tests.length} tests · {(selection[file.id] ?? []).length} selected</p></button></div>{:else}<p class="text-sm text-zinc-500 py-5">No suites or behaviours match this search.</p>{/each}
+        <div class="flex items-center justify-between gap-3 text-xs"><span class="text-zinc-500">{filtered.length} suite{filtered.length === 1 ? '' : 's'} found</span><button class="font-medium text-amber-700 dark:text-amber-400" disabled={busy || !pageTestCount} onclick={selectSuitePage}>{allPageSelected ? 'Deselect page' : 'Select page'}</button></div>
+        <p class="text-xs text-zinc-500">Names open suites. Checkboxes select all matching tests in that suite.</p>
+        {#if hiddenBySearchCount}<p class="text-xs text-amber-700 dark:text-amber-400">{hiddenBySearchCount} selected tests do not match this search. They will still run.</p>{/if}
+        {#if offPageCount}<p class="text-xs text-amber-700 dark:text-amber-400">{offPageCount} selected in suites outside this page. They will still run.</p>{/if}
+        <div bind:this={suiteList} class="max-h-[28rem] overflow-y-auto space-y-2 pr-1" aria-label="Suites on this page">
+          {#each pagedSuites as file}<div class="flex items-start gap-3 rounded-lg border p-3 {activeSuite === file.id ? 'border-amber-600 bg-amber-50/30 dark:bg-amber-950/20' : 'border-zinc-200 dark:border-zinc-800'}"><input type="checkbox" class="mt-1 accent-amber-700" aria-label={`Select suite ${suiteLabel(file)}`} use:mixed={file.visibleTests.some(test => (selection[file.id] ?? []).includes(test.name)) && !file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))} checked={file.visibleTests.length > 0 && file.visibleTests.every(test => (selection[file.id] ?? []).includes(test.name))} disabled={busy || !file.visibleTests.length} onchange={() => toggleSuite(file.id)} /><button class="min-w-0 flex-1 text-left" aria-label={`Open suite ${suiteLabel(file)}`} aria-current={activeSuite === file.id ? 'true' : undefined} onclick={() => openSuite(file.id)}><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate" title={suiteLabel(file)}>{suiteLabel(file)}</p><p class="text-xs text-zinc-500 mt-1">{file.visibleTests.length}{query.trim() ? ' matching' : ''} tests · {(selection[file.id] ?? []).length} selected</p></button></div>{:else}<p class="text-sm text-zinc-500 py-5">No suites or behaviours match this search.</p>{/each}
+        </div>
+        <nav aria-label="Suite pagination" class="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-3 text-xs text-zinc-500"><span>{filtered.length ? `${suiteStart + 1}–${Math.min(suiteStart + suitePageSize, filtered.length)} of ${filtered.length}` : '0 suites'}</span><div class="flex items-center gap-2"><button class="disabled:opacity-40" disabled={currentSuitePage === 1} onclick={() => changeSuitePage(currentSuitePage - 1)}>Previous</button><span>Page {currentSuitePage} of {suitePageCount}</span><button class="disabled:opacity-40" disabled={currentSuitePage === suitePageCount} onclick={() => changeSuitePage(currentSuitePage + 1)}>Next</button></div></nav>
+
       </section>
       <div class="space-y-5 min-w-0">
-        <section class="surface overflow-hidden" aria-label="Tests in suite"><div class="p-5 border-b border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3"><div><h2 class="section-heading">{active ? suiteLabel(active) : 'Choose a suite'}</h2>{#if active}<p class="text-xs text-zinc-500 mt-1">{active.parsed.auth ? `Uses login flow ${active.parsed.auth}` : 'No reusable login step'}</p>{/if}</div>{#if active}<Button size="sm" variant="secondary" disabled={busy || !!project.archivedAt} onclick={() => openEditor(active, undefined, true)}>Add test</Button>{/if}</div>
+        <section class="surface overflow-hidden" aria-label="Tests in suite">
+          <div class="p-5 border-b border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3"><div class="min-w-0"><h2 class="section-heading break-words">{active ? suiteLabel(active) : 'Choose a suite'}</h2>{#if active}<p class="text-xs text-zinc-500 mt-1">{active.parsed.auth ? `Uses login flow ${active.parsed.auth}` : 'No reusable login step'}</p>{/if}</div>{#if active}<Button size="sm" variant="secondary" disabled={busy || !!project.archivedAt} onclick={() => openEditor(active, undefined, true)}>Add test</Button>{/if}</div>
           {#if active && !active.parsed.tests.length}<div class="p-6 space-y-3"><p class="text-sm text-zinc-500">What should a user be able to do? Add the first behaviour and its expected result.</p><Button disabled={!!project.archivedAt} onclick={() => openEditor(active, undefined, true)}>Add your first test</Button></div>
-          {:else}{#each activeTests as test}<div class="flex items-start gap-3 p-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800"><input type="checkbox" class="mt-1 accent-amber-700" aria-label={test.name} checked={(selection[active!.id] ?? []).includes(test.name)} disabled={busy} onchange={() => toggleTest(active!.id, test.name)} /><details class="min-w-0 flex-1"><summary class="cursor-pointer"><span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{test.name}</span><span class="block text-xs text-zinc-500 mt-1">{test.steps.length} actions · {test.asserts.length} expected results{test.dependsOn ? ' · Has a prerequisite' : ''}</span></summary><div class="mt-4 space-y-3 text-xs text-zinc-500"><div><p class="font-semibold mb-2">Actions</p><ol class="space-y-1">{#each test.steps as step}<li>{actionText(step)}</li>{/each}</ol></div><div><p class="font-semibold mb-2">Expected results</p><ul class="space-y-1">{#each test.asserts as check}<li>{checkText(check.assertion)}</li>{/each}</ul></div></div></details>{#if !project.archivedAt}<button class="text-xs font-medium text-amber-700 dark:text-amber-400" disabled={busy} aria-label={`Edit test ${test.name}`} onclick={() => openEditor(active, test.name)}>Edit in editor</button>{/if}</div>{/each}{/if}
+          {:else if active}
+            <div class="px-5 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 text-xs text-zinc-500"><span>{activeTests.length} {query.trim() ? 'matching' : ''} tests · {(selection[activeSuite] ?? []).length} selected in this suite</span><button class="font-medium text-amber-700 dark:text-amber-400" disabled={busy || !pagedTests.length} onclick={selectTestPage}>{allTestPageSelected ? 'Deselect test page' : 'Select test page'}</button></div>
+            <div bind:this={testList} class="max-h-[32rem] overflow-y-auto" aria-label="Tests on this page">
+              {#each pagedTests as test}
+                {@const result = resultFor(test.name)}
+                <div class="flex items-center gap-3 px-5 py-3 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50/70 dark:hover:bg-zinc-900/50">
+                  <input type="checkbox" class="shrink-0 accent-amber-700" aria-label={test.name} checked={(selection[activeSuite] ?? []).includes(test.name)} disabled={busy} onchange={() => toggleTest(activeSuite, test.name)} />
+                  <button type="button" class="min-w-0 flex-1 text-left rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400/50" aria-label={`Preview test ${test.name}`} onclick={() => { previewName = test.name }}><span class="block truncate text-sm font-medium text-zinc-800 dark:text-zinc-200" title={test.name}>{test.name}</span><span class="block text-xs text-zinc-500 mt-1">{test.steps.length} action{test.steps.length === 1 ? '' : 's'} · {test.asserts.length} expected result{test.asserts.length === 1 ? '' : 's'}{test.dependsOn ? ' · Has prerequisites' : ''}</span></button>
+                  <span class={`hidden sm:inline text-xs shrink-0 ${statusClass(result?.status)}`} title="Result from the latest batch in this workspace">{result?.status ?? 'No result'}</span>
+                  {#if !project.archivedAt}<button class="shrink-0 text-xs font-medium text-amber-700 dark:text-amber-400" disabled={busy} aria-label={`Edit test ${test.name}`} onclick={() => openEditor(active, test.name)}>Edit</button>{/if}
+                </div>
+              {:else}<p class="p-6 text-sm text-zinc-500">No tests in this suite match the search.</p>{/each}
+            </div>
+            <nav aria-label="Test pagination" class="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 dark:border-zinc-800 px-5 py-3 text-xs text-zinc-500"><span>{activeTests.length ? `${testStart + 1}–${Math.min(testStart + testPageSize, activeTests.length)} of ${activeTests.length} tests` : '0 tests'}</span><div class="flex items-center gap-3"><button class="disabled:opacity-40" disabled={currentTestPage === 1} onclick={() => changeTestPage(currentTestPage - 1)}>Previous</button><span>Page {currentTestPage} of {testPageCount}</span><button class="disabled:opacity-40" disabled={currentTestPage === testPageCount} onclick={() => changeTestPage(currentTestPage + 1)}>Next</button></div></nav>
+            <p class="px-5 pb-3 text-xs text-zinc-400">Click a test name to preview it. Results reflect the latest batch in this workspace.</p>
+          {:else}<p class="p-6 text-sm text-zinc-500">Choose a suite from this page to browse its tests.</p>{/if}
         </section>
+
       <section class="surface overflow-hidden" aria-label="Suite results"><div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3"><div><h2 class="section-heading">Results{#if results.length}<span class="ml-2 text-sm font-normal" role="status">{passed}/{total} passed{busy ? ' · Running…' : ''}</span>{/if}</h2>{#if context}<p class="text-xs text-zinc-500 mt-1">{context.mode === 'watch' ? 'Watch' : 'Run'} · {context.environment} · {context.account}</p>{/if}</div>{#if failed && !busy && !project.archivedAt}<Button variant="secondary" size="sm" onclick={() => launch('run', true)}>Rerun failed</Button>{/if}</div>
         {#if !results.length}<p class="text-sm text-zinc-500 p-6">Select tests and run them. Results and failure evidence will appear here.</p>{/if}
         {#each results as run}<div class="p-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800"><div class="flex flex-wrap justify-between gap-2 text-sm"><h3 class="font-semibold break-all text-zinc-800 dark:text-zinc-200">{files.find(file => file.path === run.suiteName) ? suiteLabel(files.find(file => file.path === run.suiteName)!) : run.suiteName}</h3><span class={run.status === 'failed' ? 'text-red-600' : run.status === 'passed' ? 'text-green-700 dark:text-green-400' : 'text-zinc-500'}>{run.status} · {run.passedTests}/{run.totalTests} passed</span></div>{#if run.errorMessage}<p class="error-banner mt-3" role="alert">{run.errorMessage}</p>{/if}{#each run.results as result}<details class="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800" open={result.status === 'failed'}><summary class="cursor-pointer text-sm text-zinc-800 dark:text-zinc-200"><span class="font-medium">{result.testName}</span><span class="ml-2 text-xs text-zinc-500">{result.status} · {result.durationMs}ms</span></summary>{#if result.errorMessage}<p class="mt-3 text-sm text-red-600 break-words">{result.errorMessage}</p>{/if}<RunEvidence {result} />{#if !project.archivedAt && files.some(file => file.path === run.suiteName)}<button class="mt-3 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={() => openEditor(files.find(file => file.path === run.suiteName), result.testName)}>Edit this test</button>{/if}</details>{/each}</div>{/each}
@@ -225,4 +277,17 @@
 
 <SlidePanel open={inputsOpen} title="Run inputs" onclose={() => { inputsOpen = false }}>
   <form class="p-5 space-y-4" onsubmit={event => { event.preventDefault(); inputsOpen = false }}><p class="text-sm text-zinc-500">Values apply to this browser session and are cleared on refresh. Saved account credentials are managed in Configuration.</p>{#each runInputNames as name}<Input label={name.replace(/^AXTEST_/, '').replaceAll('_', ' ')} bind:value={() => runValues[name] ?? '', value => { runValues[name] = value }} required />{/each}<Button type="submit">Use these inputs</Button></form>
+</SlidePanel>
+
+<SlidePanel open={!!preview} title="Test preview" onclose={() => { previewName = '' }}>
+  {#if preview && active}
+    <div class="p-5 space-y-6">
+      <div><p class="text-xs text-zinc-500 break-words">{suiteLabel(active)}</p><h2 class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100 break-words">{preview.name}</h2><p class={`mt-2 text-xs ${statusClass(resultFor(preview.name)?.status)}`}>{resultFor(preview.name)?.status ?? 'No result in the latest workspace batch'}</p></div>
+      {#if preview.dependsOn}<section><h3 class="section-heading mb-2">Prerequisites</h3><ul class="text-sm text-zinc-500 space-y-1">{#each preview.dependsOn.split(/,\s*/).map(value => value.replace(/^"|"$/g, '')) as dependency}<li>{active.parsed.tests.find(test => test.id === dependency || test.name === dependency)?.name ?? dependency}</li>{/each}</ul></section>{/if}
+      {#if previewGrouped}<div><p class="text-sm text-zinc-500 mb-3">This test uses grouped steps. Its source shows the execution order.</p><pre class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3 text-xs overflow-auto whitespace-pre-wrap break-words">{previewSource}</pre></div>
+      {:else}<section><h3 class="section-heading mb-3">Actions</h3><ol class="space-y-3 text-sm text-zinc-600 dark:text-zinc-400 list-decimal pl-5">{#each preview.steps as step}<li class="pl-1 break-words">{actionText(step)}</li>{:else}<li>No actions defined.</li>{/each}</ol></section><section><h3 class="section-heading mb-3">Expected results</h3><ul class="space-y-3 text-sm text-zinc-600 dark:text-zinc-400 list-disc pl-5">{#each preview.asserts as check}<li class="pl-1 break-words">{checkText(check.assertion)}</li>{:else}<li>No expected results defined.</li>{/each}</ul></section>{/if}
+      <p class="text-xs text-zinc-500">This is a read-only preview. Make changes in the full editor.</p>
+      {#if !project?.archivedAt}<Button disabled={busy} onclick={() => openEditor(active, preview.name)}>Edit in editor</Button>{/if}
+    </div>
+  {/if}
 </SlidePanel>
