@@ -6,9 +6,9 @@ Use **API mode** throughout. Mock results are simulations and do not establish t
 
 Open **Projects**, then **axtest Self Test**. In **Configuration**, set the selected environment URL to `http://localhost:5173` and save a named account using the target application's username and password. Open **Test suites** and select the Authentication and Workspace suite checkboxes. A dedicated test account keeps disposable projects out of your regular workspace. Account values are encrypted on the API; only the account choice is kept in browser preferences.
 
-Choose **Run selected** for the six passing cases, or **Watch selected** to open Chromium on the API machine. There is no per-run credentials dialog. Case names are generated uniquely by the runner. The result panel combines both suites, restores after refresh, and offers **Rerun failed** when appropriate. Select Evidence separately to verify its intentional failure and screenshot. An account selected for a public test does not suppress that test's evidence when no credentials are used.
+Choose **Run selected** for the six passing cases. The readiness summary explains missing configuration, and the execution plan lists any included prerequisites. There is no per-run credentials dialog. Case names are generated uniquely by the runner. The result panel combines both suites, restores after refresh, and offers **Rerun failed** when appropriate. Select Evidence separately to verify its intentional failure and screenshot. An account selected for a public test does not suppress that test's evidence when no credentials are used.
 
-The environment, account choice and selection are remembered. **Debug** is shown as a future entry point; breakpoints, pausing and stepping are not implemented in this stage. Use **Edit suite** or **Open editor** only when changing a test. The editor walkthrough below remains available for authoring and isolated file runs.
+The environment, account choice and selection are remembered. Use **New suite** and **Add test** for guided authoring, **Edit** for supported simple tests, and **Advanced editor** for grouped flows or source changes. Watch, breakpoints, pausing and stepping are not available in this workspace yet. The editor walkthrough below remains available for isolated file runs, including its existing browser display option.
 
 ## Prepare
 
