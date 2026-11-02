@@ -5,6 +5,7 @@ namespace Axtest.Api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<ProjectSetup> ProjectSetups => Set<ProjectSetup>();
     public DbSet<ProjectTestAccount> ProjectTestAccounts => Set<ProjectTestAccount>();
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
@@ -21,6 +22,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<ProjectSetup>(e => {
+            e.HasKey(s => new { s.ProjectId, s.Environment });
+            e.Property(s => s.Environment).HasMaxLength(20);
+            e.HasOne(s => s.Project).WithMany().HasForeignKey(s => s.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ProjectFile>().WithMany().HasForeignKey(s => s.LoginFlowId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<ProjectTestAccount>().WithMany().HasForeignKey(s => s.DefaultAccountId).OnDelete(DeleteBehavior.SetNull);
+        });
         model.Entity<ProjectTestAccount>(e => {
             e.HasIndex(a => new { a.ProjectId, a.Environment, a.Name }).IsUnique();
             e.Property(a => a.Name).HasMaxLength(80);

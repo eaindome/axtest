@@ -197,6 +197,33 @@ namespace Axtest.Api.Migrations
                     b.ToTable("ProjectFiles");
                 });
 
+            modelBuilder.Entity("Axtest.Api.Models.ProjectSetup", b =>
+                {
+                    b.Property<long>("ProjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Environment")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("DefaultAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LoginFlowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("LoginRequired")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("ProjectId", "Environment");
+
+                    b.HasIndex("DefaultAccountId");
+
+                    b.HasIndex("LoginFlowId");
+
+                    b.ToTable("ProjectSetups");
+                });
+
             modelBuilder.Entity("Axtest.Api.Models.ProjectTestAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -557,6 +584,27 @@ namespace Axtest.Api.Migrations
 
             modelBuilder.Entity("Axtest.Api.Models.ProjectFile", b =>
                 {
+                    b.HasOne("Axtest.Api.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Axtest.Api.Models.ProjectSetup", b =>
+                {
+                    b.HasOne("Axtest.Api.Models.ProjectTestAccount", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Axtest.Api.Models.ProjectFile", null)
+                        .WithMany()
+                        .HasForeignKey("LoginFlowId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Axtest.Api.Models.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
