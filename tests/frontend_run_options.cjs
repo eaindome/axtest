@@ -1,89 +1,118 @@
 const assert = require('node:assert/strict')
+const http = require('node:http')
 const { createRequire } = require('node:module')
 const { execFileSync } = require('node:child_process')
-const { chromium } = createRequire(process.cwd()+'/packages/core/package.json')('playwright')
+const { chromium, request } = createRequire(process.cwd() + '/packages/core/package.json')('playwright')
 const { register } = require('./browser_auth.cjs')
-const API='http://localhost:5000', WEB='http://localhost:5173'
-;(async()=>{
-  const browser=await chromium.launch()
-  function visibleChromiumWindows() {
-    if (process.platform !== 'win32') return []
-    const executable = chromium.executablePath().replaceAll("'", "''")
-    const output = execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${executable}' -and $_.MainWindowHandle -ne 0 } | ForEach-Object { $_.MainWindowHandle.ToString() }) | ConvertTo-Json -Compress`],{encoding:'utf8',windowsHide:true,timeout:10000}).trim()
-    const result = output ? JSON.parse(output) : []
-    return Array.isArray(result) ? result : [result]
+const API = 'http://localhost:5000', WEB = 'http://localhost:5173'
+function visibleWindows() {
+  if (process.platform !== 'win32') return []
+  const executable = chromium.executablePath().replaceAll("'", "''")
+  const text = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `@(Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${executable}' -and $_.MainWindowHandle -ne 0 } | ForEach-Object { $_.MainWindowHandle.ToString() }) | ConvertTo-Json -Compress`], { encoding: 'utf8', windowsHide: true, timeout: 10000 }).trim()
+  const result = text ? JSON.parse(text) : []
+  return Array.isArray(result) ? result : [result]
+}
+;(async () => {
+  let pings = []
+  const fixture = http.createServer((req, res) => {
+    if (req.url === '/ping') { pings.push(Date.now()); res.end('ok'); return }
+    res.setHeader('Content-Type', 'text/html')
+    res.end('<!doctype html><html><body><button onclick="fetch(\'/ping\');if(++window.count===4)document.querySelector(\'h1\').textContent=\'Done\'">Ping</button><h1>Ready</h1><script>window.count=0</script></body></html>')
+  })
+  await new Promise(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const browser = await chromium.launch()
+  let client, project, workspace, page
+  const errors = []
+  async function call(method, path, data, expected = 200) {
+    const session = await (await client.get(API + '/api/auth/session')).json()
+    const response = await client.fetch(API + path, { method, data, timeout: 180000, headers: { 'X-CSRF-TOKEN': session.csrfToken } })
+    assert.equal(response.status(), expected, `${method} ${path}`)
+    return response.status() === 204 ? null : response.json()
   }
-  let page,workspace,project
-  async function call(method,path,data) {
-    const session=await (await page.request.get(API+'/api/auth/session')).json()
-    const response=await page.request.fetch(API+path,{method,data,timeout:180000,headers:{'X-CSRF-TOKEN':session.csrfToken}})
-    assert(response.ok(), `${method} ${path}: ${response.status()}`)
-    return response.status()===204 ? null : response.json()
-  }
-  async function chooseEnvironment(current,next) {
-    await page.getByRole('button',{name:current,exact:true}).click()
-    await page.getByRole('option',{name:next,exact:true}).click()
+  async function waitRun(runId, expectVisible, previousHandles) {
+    const previous = new Set(previousHandles)
+    let observed = false, detail, deadline = Date.now() + 120000
+    do {
+      detail = await call('GET', `/api/projects/${project.id}/runs/${runId}`)
+      if (visibleWindows().some(handle => !previous.has(handle))) observed = true
+      if (['passed', 'failed'].includes(detail.status)) break
+      await new Promise(resolve => setTimeout(resolve, 250))
+    } while (Date.now() < deadline)
+    assert.equal(detail.status, 'passed', JSON.stringify(detail))
+    if (process.platform === 'win32') assert.equal(observed, expectVisible, 'Desktop browser visibility must match Run settings.')
+    assert.equal(pings.length, 4)
+    return pings.slice(1).map((time, index) => time - pings[index])
   }
   try {
-    page=await browser.newPage({viewport:{width:1100,height:850}})
-    page.setDefaultTimeout(30000)
-    const errors=[];page.on('pageerror',e=>errors.push(e.message))
-    await register(page.context(),API)
-    workspace=(await call('GET','/api/workspaces'))[0].id
-    project=await call('POST',`/api/workspaces/${workspace}/projects`,{name:'Run options verification '+Date.now(),baseUrl:WEB})
-    const file=await call('POST',`/api/projects/${project.id}/files`,{name:'visible',folder:'modules'})
-    await call('PUT',`/api/projects/${project.id}/files/${file.id}`,{content:'TEST "Visible browser login page"\n STEPS\n navigate to "/login?mode=api"\n wait for "Username" to appear\n ASSERT\n assert "Username" is_visible'})
-    await page.goto(WEB+`/editor?project=${project.id}&file=modules/visible.axtest&mode=api`)
-    await page.locator('.cm-content').waitFor()
-    await page.getByRole('button',{name:'Edit Staging URL',exact:true}).click()
-    await page.getByLabel('Staging URL',{exact:true}).fill(WEB+'/staging')
-    await page.getByRole('button',{name:'Save Staging URL',exact:true}).click()
-    await chooseEnvironment('Staging','Local')
-    await page.getByLabel('Local URL',{exact:true}).fill(WEB+'/local')
-    await page.getByRole('button',{name:'Save Local URL',exact:true}).click()
-    await chooseEnvironment('Local','Production')
-    await page.getByRole('button',{name:'Edit Production URL',exact:true}).click()
-    await page.getByLabel('Production URL',{exact:true}).fill(WEB+'/production')
-    await page.getByRole('button',{name:'Save Production URL',exact:true}).click()
-    const environments=await call('GET',`/api/projects/${project.id}/environments`)
-    assert.equal(environments.find(e=>e.name==='staging').baseUrl,WEB+'/staging')
-    assert.equal(environments.find(e=>e.name==='local').baseUrl,WEB+'/local')
-    const stored=await call('GET',`/api/workspaces/${workspace}/projects/${project.id}`)
-    assert.equal(stored.baseUrl,WEB+'/production')
-    await page.reload();await page.locator('.cm-content').waitFor()
-    await chooseEnvironment('Staging','Production')
-    await page.getByRole('button',{name:'Edit Production URL',exact:true}).click()
-    assert.equal(await page.getByLabel('Production URL',{exact:true}).inputValue(),WEB+'/production')
-    await page.getByRole('button',{name:'Cancel',exact:true}).click()
-    console.log('PASS visible URL controls at 1100px; Production, Staging and Local edits persist after refresh')
-    await page.getByRole('button',{name:'Run',exact:true}).click()
-    const dialog=page.getByRole('dialog',{name:'Run options',exact:true})
-    await dialog.waitFor()
-    const bounds=await dialog.boundingBox()
-    assert(Math.abs(bounds.x+bounds.width/2-550)<5)
-    assert(Math.abs(bounds.y+bounds.height/2-425)<5)
-    await page.getByRole('checkbox',{name:'Show browser during this run',exact:true}).check()
-    const previousWindows = new Set(visibleChromiumWindows())
-    let observedWindow = false
-    const submitted=page.waitForResponse(r=>r.url().includes('/runs/file?wait=false') && r.request().method()==='POST')
-    await page.getByRole('button',{name:'Start run',exact:true}).click()
-    const response=await submitted
-    assert.equal(response.request().postDataJSON().headed,true)
-    assert(response.ok())
-    const run=await response.json()
-    let detail=run, deadline=Date.now()+150000
-    while(!['passed','failed'].includes(detail.status)&&Date.now()<deadline) {
-      if (process.platform === 'win32' && visibleChromiumWindows().some(id=>!previousWindows.has(id))) observedWindow = true
-      await new Promise(resolve=>setTimeout(resolve,500))
-      detail=await call('GET',`/api/projects/${project.id}/runs/${run.id}`)
-    }
-    assert.equal(detail.status,'passed',JSON.stringify(detail))
-    if (process.platform === 'win32') assert(observedWindow,'A new visible Chromium desktop window must appear, not just a headed request flag.')
-    await page.getByText('1/1 passed',{exact:true}).first().waitFor()
-    assert.deepEqual(errors,[])
-    console.log('PASS centered run dialog, headed execution and a new visible Chromium desktop window')
-  } finally {
-    if(project) { await call('POST',`/api/workspaces/${workspace}/projects/${project.id}/archive`); await call('DELETE',`/api/workspaces/${workspace}/projects/${project.id}`) }
+    page = await browser.newPage({ viewport: { width: 1440, height: 1050 } })
+    page.on('pageerror', error => errors.push(error.message))
+    client = page.request
+    await register(page.context(), API)
+    workspace = (await call('GET', '/api/workspaces'))[0].id
+    project = await call('POST', `/api/workspaces/${workspace}/projects`, { name: 'Run settings verification ' + Date.now(), baseUrl: `http://127.0.0.1:${fixture.address().port}` }, 201)
+    const content = '---\ntitle: Browser pacing\n---\nTEST "Paced clicks"\n ID paced-clicks\nSTEPS\n navigate to "/"\n click "Ping"\n click "Ping"\n click "Ping"\n click "Ping"\nASSERT\n assert "Done" is_visible\n'
+    const file = await call('POST', `/api/projects/${project.id}/files`, { name: 'paced', folder: 'modules', content })
+    const batch = { environment: 'production', files: [{ fileId: file.id }] }
+    await call('POST', `/api/projects/${project.id}/runs/batch`, { ...batch, slowMoMs: -1 }, 400)
+    await call('POST', `/api/projects/${project.id}/runs/file?wait=false`, { environment: 'production', fileId: file.id, content, slowMoMs: 99999 }, 400)
+    assert.deepEqual(await call('GET', `/api/projects/${project.id}/runs`), [])
+    await page.goto(`${WEB}/projects/${project.id}/suites?mode=api`)
+    await page.getByLabel('Select suite Browser pacing', { exact: true }).check()
+    const settings = page.getByRole('region', { name: 'Run settings', exact: true })
+    await page.getByRole('button', { name: 'Run settings', exact: true }).click()
+    await settings.getByRole('checkbox', { name: 'Show browser', exact: true }).check()
+    await settings.getByRole('button', { name: 'Execution speed', exact: true }).click()
+    await page.getByRole('option', { name: 'Fast · no added delay', exact: true }).click()
+    await settings.getByRole('button', { name: 'Close run settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit test Paced clicks', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite editor context', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run settings', exact: true }).click()
+    assert(await settings.getByRole('checkbox', { name: 'Show browser', exact: true }).isChecked())
+    assert.match(await settings.getByRole('button', { name: 'Execution speed', exact: true }).innerText(), /Fast/)
+    await settings.getByRole('button', { name: 'Execution speed', exact: true }).click()
+    await page.getByRole('option', { name: 'Slow · 1 second', exact: true }).click()
+    await settings.getByRole('button', { name: 'Close run settings', exact: true }).click()
+    await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite selection', exact: true }).waitFor()
+    await page.reload()
+    await page.getByRole('button', { name: 'Run settings', exact: true }).click()
+    assert(await settings.getByRole('checkbox', { name: 'Show browser', exact: true }).isChecked())
+    assert.match(await settings.getByRole('button', { name: 'Execution speed', exact: true }).innerText(), /Slow/)
+    await settings.getByRole('button', { name: 'Close run settings', exact: true }).click()
+    assert(!(await page.getByRole('button', { name: 'Run selected', exact: true }).isDisabled()), 'Run should remain ready after restoring settings and selection.')
+    const slowBaseline = visibleWindows()
+    const submitted = page.waitForResponse(response => response.url().endsWith('/runs/batch') && response.request().method() === 'POST')
+    submitted.catch(() => {})
+    await page.getByRole('button', { name: 'Run selected', exact: true }).click()
+    const response = await submitted
+    assert.equal(response.status(), 202)
+    assert.equal(response.request().postDataJSON().headed, true)
+    assert.equal(response.request().postDataJSON().slowMoMs, 1000)
+    const queued = await response.json()
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.deepEqual(errors, [])
+    // Release the UI browser before executing worker browsers on memory-constrained machines.
+    client = await request.newContext({ storageState: await page.context().storageState() })
     await browser.close()
+    const slow = await waitRun(queued[0].id, true, slowBaseline)
+    assert(slow.every(gap => gap >= 750), 'Slow mode must visibly pace the actual clicks.')
+    pings = []
+    const fastBaseline = visibleWindows()
+    const fastRun = await call('POST', `/api/projects/${project.id}/runs/file?wait=false`, { environment: 'production', fileId: file.id, content, headed: true, slowMoMs: 0 }, 202)
+    const fast = await waitRun(fastRun.id, true, fastBaseline)
+    assert(Math.max(...fast) < Math.min(...slow), 'Zero delay must not fall back to the old 400 ms delay.')
+    pings = []
+    const headlessBaseline = visibleWindows()
+    const headlessRun = await call('POST', `/api/projects/${project.id}/runs/batch`, { ...batch, headed: false, slowMoMs: 1000 }, 202)
+    const headless = await waitRun(headlessRun[0].id, false, headlessBaseline)
+    assert(Math.max(...headless) < Math.min(...slow), 'Headless execution must ignore the saved visible-browser delay.')
+    console.log('PASS settings shared between Suites/editor and refresh, real visible Slow/Fast runs, headless full-speed execution, both API payloads and rejection before queueing invalid delays')
+  } catch (error) {
+    if (page && !page.isClosed()) { console.error('At:', page.url(), 'errors:', errors, 'body:', await page.locator('body').innerText()); await page.screenshot({ path: 'tests/screenshots/run-settings-error.png', fullPage: true }).catch(() => {}) }
+    throw error
+  } finally {
+    try {
+      if (project && client) { await call('POST', `/api/workspaces/${workspace}/projects/${project.id}/archive`, undefined, 204); await call('DELETE', `/api/workspaces/${workspace}/projects/${project.id}`, undefined, 204) }
+    } finally { await browser.close(); if (client) await client.dispose(); await new Promise(resolve => fixture.close(resolve)) }
   }
-})().catch(error=>{console.error(error);process.exitCode=1})
+})().catch(error => { console.error(String(error)); process.exitCode = 1 })
