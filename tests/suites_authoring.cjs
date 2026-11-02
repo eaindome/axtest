@@ -48,7 +48,7 @@ const source = (title, second = false) => `---\ntitle: ${title}\n---\n# axtest:s
     await page.getByRole('checkbox', { name: 'Select suite Task management', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Open suite Task management', exact: true }).click()
     await page.getByLabel('Search suites', { exact: true }).fill('Complete')
-    await page.getByRole('button', { name: 'Select visible', exact: true }).click()
+    await page.getByRole('button', { name: 'Select page', exact: true }).click()
     await page.getByText(/1 selected\s*·\s*1 prerequisites included\s*·\s*2 will run/).waitFor()
     await page.getByRole('button', { name: 'Edit test Complete a task', exact: true }).click()
     await page.getByRole('region', { name: 'Suite editor context' }).waitFor()
