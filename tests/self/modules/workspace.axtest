@@ -1,6 +1,6 @@
 AUTH self-login
 
-TEST "Create a project and save its first file"
+TEST "Create a project and save its first suite"
  ID self-create-project-file
  STEPS
   navigate to "/projects"
@@ -16,15 +16,17 @@ TEST "Create a project and save its first file"
  STEPS
   click "Self test {{AXTEST_CASE}}"
   wait for "Configuration" to appear
+  wait for "Create your first test" to appear
   click "Create your first test"
-  wait for "modules" to appear
-  click "New file in modules"
-  type "self-created.axtest" in "name.axtest"
-  press "Enter"
-  wait for "self-created.axtest" to appear
+  wait for "Suite name" to appear
+  type "Self test suite {{AXTEST_CASE}}" in "Suite name"
+  type "First behaviour" in "Test name"
+  type "Projects" in "Element or label"
+  click "Save"
+  wait for "All changes saved" to appear
  ASSERT
   assert url contains "/editor"
-  assert "self-created.axtest" is_visible
+  assert "Self test suite {{AXTEST_CASE}}" is_visible
 
 TEST "Open account settings"
  ID self-settings

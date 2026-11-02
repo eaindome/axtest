@@ -1,16 +1,90 @@
-const assert=require('node:assert/strict'),{createRequire}=require('node:module');const{chromium}=createRequire(process.cwd()+'/packages/core/package.json')('playwright');
-(async()=>{const browser=await chromium.launch();let page;try{
- page=await browser.newPage({viewport:{width:1440,height:1050}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://localhost:5173/login?mode=mock');await page.getByLabel('Username').fill('suite-review');await page.getByLabel('Password',{exact:false}).fill('mock-only');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('heading',{name:'A clearer view of quality.'}).waitFor();await page.locator('aside').getByRole('link',{name:'Projects',exact:true}).click();await page.getByRole('button',{name:'New project',exact:true}).click();await page.getByLabel('Project name',{exact:false}).fill('Todo suite workspace');await page.getByLabel('Production URL',{exact:false}).fill('http://todo.invalid');await page.getByRole('button',{name:'Create Project',exact:true}).click();await page.getByRole('link',{name:'Todo suite workspace',exact:true}).click();await page.getByRole('navigation',{name:'Project navigation'}).getByRole('link',{name:'Test suites',exact:true}).click();await page.getByRole('heading',{name:'Start with a user journey',exact:true}).waitFor();
- async function choose(label,option){await page.getByRole('button',{name:label,exact:true}).click();await page.getByRole('option',{name:option,exact:true}).click()}
- async function suite(name,first=false){await page.getByRole('button',{name:first?'Create your first suite':'New suite',exact:true}).click();await page.getByLabel('Suite name',{exact:false}).fill(name);await page.getByRole('button',{name:'Create suite',exact:true}).click();await page.getByRole('dialog',{name:'New suite',exact:true}).waitFor({state:'detached'})}
- async function test(name,target,dependency){await page.getByRole('button',{name:'Add test',exact:true}).click();await page.getByLabel('Behaviour name',{exact:false}).fill(name);await page.getByLabel('Expected target 1',{exact:false}).fill(target);if(dependency)await choose('Test prerequisite',dependency);await page.getByRole('button',{name:'Save test',exact:true}).click();await page.getByRole('dialog',{name:'Add behaviour test',exact:true}).waitFor({state:'detached'})}
- await suite('Task management',true);assert(await page.getByRole('checkbox',{name:'Select suite Task management',exact:true}).isDisabled());
- await test('Create a task','Task list');assert(await page.getByLabel('Create a task',{exact:true}).isChecked());
- await test('Complete a task','Completed','Create a task');await page.getByLabel('Create a task',{exact:true}).uncheck();await page.getByLabel('Complete a task',{exact:true}).check();assert.equal(await page.getByRole('checkbox',{name:'Select suite Task management',exact:true}).evaluate(el=>el.indeterminate),true);await page.getByText(/1 selected\s*·\s*1 prerequisites included\s*·\s*2 will run/).waitFor();
- await suite('Authentication');await test('Sign in','Projects');await page.getByRole('button',{name:'Clear selection',exact:true}).click();await page.getByLabel('Search suites',{exact:true}).fill('Complete');await page.getByRole('button',{name:'Select visible',exact:true}).click();await page.getByText(/1 selected\s*·\s*1 prerequisites included\s*·\s*2 will run/).waitFor();await page.getByLabel('Search suites',{exact:true}).fill('');await page.getByRole('button',{name:'Open suite Authentication',exact:true}).click();assert.equal(await page.getByLabel('Sign in',{exact:true}).isChecked(),false);await page.getByLabel('Sign in',{exact:true}).check();await page.getByLabel('Search suites',{exact:true}).fill('Complete');await page.getByText('1 selected test outside this search. They will still run.',{exact:true}).waitFor();await page.getByRole('button',{name:'Deselect visible',exact:true}).click();await page.getByText(/1 selected\s*·\s*1 will run/).waitFor();await page.getByLabel('Search suites',{exact:true}).fill('');await page.getByRole('button',{name:'Open suite Authentication',exact:true}).click();
- await page.getByRole('button',{name:'Edit test Sign in',exact:true}).click();await page.getByRole('button',{name:'Add action',exact:true}).click();await choose('Action 2 type','Enter text');await page.getByLabel('Target for action 2',{exact:false}).fill('Username');await page.getByLabel('Value for action 2',{exact:false}).fill('{{AXTEST_USERNAME}}');await page.getByRole('button',{name:'Save test',exact:true}).click();await page.getByRole('dialog',{name:'Edit behaviour test',exact:true}).waitFor({state:'detached'});assert(await page.getByRole('button',{name:'Run selected',exact:true}).isDisabled());await page.getByText('Choose a saved account providing: AXTEST_USERNAME.',{exact:true}).waitFor();assert.match(new URL(page.url()).pathname,/suites$/);await page.getByRole('link',{name:'Configure access',exact:true}).click();await page.getByRole('region',{name:'Environment configuration',exact:true}).waitFor();await page.getByRole('navigation',{name:'Project navigation'}).getByRole('link',{name:'Test suites',exact:true}).click();await page.getByRole('region',{name:'Suite selection',exact:true}).waitFor();await page.getByRole('button',{name:'Open suite Authentication',exact:true}).click();assert(await page.getByLabel('Sign in',{exact:true}).isChecked());
- await page.getByRole('button',{name:'Clear selection',exact:true}).click();await page.getByRole('button',{name:'Open suite Task management',exact:true}).click();await page.getByRole('button',{name:'Edit test Complete a task',exact:true}).click();await page.getByRole('button',{name:'Add action',exact:true}).click();await choose('Action 2 type','Enter text');await page.getByLabel('Target for action 2',{exact:false}).fill('New task');await page.getByLabel('Value for action 2',{exact:false}).fill('{{AXTEST_TASK}}');await page.getByRole('button',{name:'Save test',exact:true}).click();await page.getByRole('dialog',{name:'Edit behaviour test',exact:true}).waitFor({state:'detached'});await page.getByLabel('Complete a task',{exact:true}).check();assert(await page.getByRole('button',{name:'Run selected',exact:true}).isDisabled());await page.getByRole('button',{name:'Provide run inputs',exact:true}).click();await page.getByRole('dialog',{name:'Run inputs',exact:true}).getByRole('textbox',{name:/TASK/}).fill('unique-session-only-task');await page.getByRole('button',{name:'Use these inputs',exact:true}).click();await page.getByRole('dialog',{name:'Run inputs',exact:true}).waitFor({state:'detached'});assert(!(await page.evaluate(()=>JSON.stringify(localStorage))).includes('unique-session-only-task'));await page.getByRole('button',{name:'Run selected',exact:true}).click();await page.getByRole('region',{name:'Suite results',exact:true}).getByRole('status').filter({hasText:'2/2 passed'}).waitFor();assert.equal(await page.getByRole('button',{name:'Debug',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Watch selected',exact:true}).count(),0);await page.screenshot({path:'tests/screenshots/suite-workspace-new.png',fullPage:true});await page.setViewportSize({width:760,height:1050});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);console.log('PASS suite/test creation and editing, prerequisite preview, mixed selection, search-scoped bulk actions, preserved selection through explicit setup, private run inputs, unified mock results and narrow layout')
-}catch(error){if(page){console.error('Review at:',page.url(),'alerts:',await page.getByRole('alert').allTextContents());await page.screenshot({path:'tests/screenshots/suite-workspace-new-error.png',fullPage:true}).catch(()=>{})}throw error}finally{await browser.close()}})().catch(e=>{console.error(String(e));process.exitCode=1});
-
-
+const assert = require('node:assert/strict')
+const { createRequire } = require('node:module')
+const { mkdirSync } = require('node:fs')
+const { chromium } = createRequire(process.cwd() + '/packages/core/package.json')('playwright')
+const source = (title, second = false) => `---\ntitle: ${title}\n---\n# axtest:suite\nTEST "Create a task"\n ID create-task\nSTEPS\n navigate to "/"\nASSERT\n assert "Tasks" is_visible\n${second ? 'TEST "Complete a task"\n ID complete-task\n DEPENDS ON "create-task"\nSTEPS\n navigate to "/"\nASSERT\n assert "Tasks" is_visible\n' : ''}`
+;(async () => {
+  const browser = await chromium.launch()
+  const page = await browser.newPage({ viewport: { width: 1500, height: 1050 } })
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  mkdirSync('tests/screenshots', { recursive: true })
+  try {
+    await page.goto('http://localhost:5173/login?mode=mock')
+    await page.getByLabel('Username').fill('suite-review')
+    await page.getByLabel('Password', { exact: false }).fill('mock-only')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.getByRole('heading', { name: 'A clearer view of quality.' }).waitFor()
+    assert.equal(await page.locator('aside').getByRole('link', { name: 'Test Editor', exact: true }).count(), 0)
+    await page.locator('aside').getByRole('link', { name: 'Projects', exact: true }).click()
+    await page.getByRole('button', { name: 'New project', exact: true }).click()
+    await page.getByLabel('Project name', { exact: false }).fill('Todo suite workspace')
+    await page.getByLabel('Production URL', { exact: false }).fill('http://todo.invalid')
+    await page.getByRole('button', { name: 'Create Project', exact: true }).click()
+    await page.getByRole('link', { name: 'Todo suite workspace', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Project navigation' }).getByRole('link', { name: 'Test suites', exact: true }).click()
+    const suitesUrl = page.url()
+    async function code(content) {
+      await page.getByRole('tab', { name: 'Code', exact: true }).click()
+      await page.locator('.cm-content').fill(content)
+    }
+    async function save() {
+      const notifications = page.locator('[aria-label="Notifications"]')
+      for (const button of await notifications.getByRole('button', { name: 'Dismiss notification' }).all()) await button.click()
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
+      await notifications.getByText('Suite saved.', { exact: true }).waitFor()
+    }
+    await page.getByRole('button', { name: 'Create your first suite', exact: true }).click()
+    await page.getByLabel('Suite name', { exact: true }).fill('Task management')
+    assert.match(page.url(), /newSuite=1/)
+    await page.getByRole('button', { name: 'Run this test', exact: true }).waitFor()
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    await code(source('Task management', true))
+    await save()
+    assert(!page.url().includes('newSuite='))
+    await page.getByRole('button', { name: 'Run this suite', exact: true }).click()
+    await page.getByText('2/2 passed', { exact: true }).first().waitFor()
+    await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Select suite Task management', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Open suite Task management', exact: true }).click()
+    await page.getByLabel('Search suites', { exact: true }).fill('Complete')
+    await page.getByRole('button', { name: 'Select visible', exact: true }).click()
+    await page.getByText(/1 selected\s*·\s*1 prerequisites included\s*·\s*2 will run/).waitFor()
+    await page.getByRole('button', { name: 'Edit test Complete a task', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite editor context' }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('test'), 'Complete a task')
+    assert.match(await page.getByRole('button', { name: 'Environment', exact: true }).innerText(), /Production/)
+    await page.getByRole('button', { name: 'Run this test', exact: true }).nth(1).click()
+    await page.getByText(/passed/i).first().waitFor()
+    assert.equal(await page.getByRole('dialog', { name: 'Run options' }).count(), 0)
+    await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
+    assert.equal(await page.getByLabel('Search suites', { exact: true }).inputValue(), 'Complete')
+    assert(await page.getByLabel('Complete a task', { exact: true }).isChecked())
+    await page.getByRole('button', { name: 'Run selected', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite results' }).getByRole('status').filter({ hasText: '2/2 passed' }).waitFor()
+    await page.getByRole('button', { name: 'Add test', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite editor context' }).waitFor()
+    await page.getByRole('tab', { name: 'Code', exact: true }).click()
+    assert.match(await page.locator('.cm-content').innerText(), /New behaviour 3/)
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
+    await page.getByRole('region', { name: 'Suite results' }).getByRole('status').filter({ hasText: '2/2 passed' }).waitFor()
+    await page.getByRole('button', { name: 'Edit test Complete a task', exact: true }).click()
+    await code(source('Task management', true).replace('Complete a task', 'Complete another task').replace(' navigate to "/"\nASSERT', ' navigate to "/"\n type "{{AXTEST_USERNAME}}" in "Username"\nASSERT'))
+    await save()
+    await page.getByRole('button', { name: 'Run this suite', exact: true }).click()
+    await page.getByText('Choose a saved account providing: AXTEST_USERNAME.', { exact: true }).waitFor()
+    assert.match(page.url(), /editor/)
+    await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
+    await page.getByLabel('Search suites', { exact: true }).fill('')
+    await page.getByRole('button', { name: 'Open suite Task management', exact: true }).click()
+    assert(await page.getByLabel('Complete another task', { exact: true }).isChecked(), 'Renaming a selected test should preserve its selection.')
+    await page.screenshot({ path: 'tests/screenshots/suite-editor-connected.png', fullPage: true })
+    assert.deepEqual(errors, [])
+    console.log('PASS full editor drafts, toast saves, exact-test navigation, shared environment, direct quick runs, search/selection/results restoration, add-test discard and persistent account readiness')
+  } catch (error) {
+    console.error('At:', page.url(), 'errors:', errors)
+    await page.screenshot({ path: 'tests/screenshots/suite-editor-connected-error.png', fullPage: true })
+    throw error
+  } finally { await browser.close() }
+})().catch(error => { console.error(String(error)); process.exitCode = 1 })

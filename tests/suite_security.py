@@ -86,9 +86,26 @@ try:
     assert all(value not in json.dumps(results) for value in values.values())
     assert not results[0]['results'][0]['screenshotUrl']
     assert results[2]['results'][0]['screenshotUrl'], 'An unused saved account must not suppress public failure evidence.'
+    # Editor flow execution must use the same encrypted profile, URL binding and redaction.
+    flow_source='AUTH account-probe\nSTEPS\n navigate to "/login?mode=api"\n wait for "Username" to appear\n type "{{AXTEST_USERNAME}}" in "Username"\n type "{{AXTEST_PASSWORD}}" in "Password"\nASSERT\n assert "Username" equals "{{AXTEST_USERNAME}}"'
+    flow=owner.call('POST',f'/api/projects/{project}/files',{'name':'account-probe','folder':'auth','content':flow_source})
+    editor_request={**base,'fileId':flow['id'],'content':flow_source}
+    outsider.call('POST',f'/api/projects/{project}/runs/file?wait=false',editor_request,404)
+    viewer.call('POST',f'/api/projects/{project}/runs/file?wait=false',editor_request,404)
+    owner.call('POST',f'/api/projects/{project}/runs/file?wait=false',{**editor_request,'environment':'staging'},400)
+    owner.call('PUT',f'/api/workspaces/{workspace}/projects/{project}',{'name':'editor URL normalization','baseUrl':'http://localhost:5173/'})
+    editor_run=owner.call('POST',f'/api/projects/{project}/runs/file?wait=false',editor_request,202)
+    deadline=time.time()+180
+    while time.time()<deadline:
+        editor_result=owner.call('GET',f'/api/projects/{project}/runs/{editor_run["id"]}')
+        if editor_result['status'] in ['passed','failed']: break
+        time.sleep(.5)
+    assert editor_result['status']=='passed', 'Saved-account editor flow must pass.'
+    assert all(value not in json.dumps(editor_result) for value in values.values())
+    assert not editor_result['results'][0]['screenshotUrl']
     owner.call('DELETE',f'/api/projects/{project}/test-accounts/{account["id"]}',expected=204)
     assert owner.call('GET',f'/api/projects/{project}/test-accounts')==[]
-    print('PASS saved-account privacy and persistence, user/role/environment/URL isolation, atomic batches, actual credential execution and public failure evidence')
+    print('PASS saved-account privacy and persistence, user/role/environment/URL isolation, atomic batches, actual credential execution, saved-account editor flows and public failure evidence')
 finally:
     for project in projects:
         try:
