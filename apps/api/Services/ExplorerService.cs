@@ -50,21 +50,33 @@ public class ExplorerService(AppDbContext db)
     }
     public async Task<FileDto> Create(long projectId, CreateFileRequest req)
     {
+        if (req.Content?.Length > 1_000_000) throw new ArgumentException("File content must be at most 1 MB.");
         var name = FileName(req.Name);
         var folder = string.IsNullOrWhiteSpace(req.Folder) ? null : Normalize(req.Folder);
         var path = folder is null ? name : folder + "/" + name;
         Normalize(path);
         if (await db.ProjectFiles.AnyAsync(f => f.ProjectId == projectId && f.Path == path)) throw new ResourceConflictException("A file or folder with that name already exists.");
         await EnsureFolders(projectId, folder);
-        var file = new ProjectFile { ProjectId = projectId, Path = path, Content = "---\ntitle: " + name[..^7] + "\n---\n" };
+        var file = new ProjectFile { ProjectId = projectId, Path = path, Content = req.Content ?? ("---\ntitle: " + name[..^7] + "\n---\n") };
         db.ProjectFiles.Add(file);
         await Save(projectId);
         return Dto(file);
     }
-    public async Task<FileDto> SaveFile(long projectId, Guid id, string content)
+    public async Task<FileDto> SaveFile(long projectId, Guid id, string content, DateTime? expectedUpdatedAt = null)
     {
         if (content is null || content.Length > 1_000_000) throw new ArgumentException("File content must be at most 1 MB.");
         var file = await File(projectId, id);
+        if (expectedUpdatedAt is not null) {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            var updatedAt = DateTime.UtcNow;
+            var changed = await db.ProjectFiles.Where(f => f.ProjectId == projectId && f.Id == id && f.UpdatedAt == expectedUpdatedAt)
+                .ExecuteUpdateAsync(set => set.SetProperty(f => f.Content, content).SetProperty(f => f.UpdatedAt, updatedAt));
+            if (changed == 0) throw new ResourceConflictException("This suite changed since you opened it. Reopen the test before saving so other edits are preserved.");
+            await db.Entry(file).ReloadAsync();
+            await Save(projectId);
+            await transaction.CommitAsync();
+            return Dto(file);
+        }
         file.Content = content; file.UpdatedAt = DateTime.UtcNow;
         await Save(projectId);
         return Dto(file);

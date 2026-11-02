@@ -14,7 +14,7 @@ public class ExplorerController(ProjectAccess access, ExplorerService explorer, 
     [HttpPost("files")]
     public async Task<IActionResult> Create(long projectId, CreateFileRequest req) => await access.Get(projectId, true) is null ? NotFound() : Ok(await explorer.Create(projectId, req));
     [HttpPut("files/{id:guid}")]
-    public async Task<IActionResult> Save(long projectId, Guid id, SaveFileRequest req) => await access.Get(projectId, true) is null ? NotFound() : Ok(await explorer.SaveFile(projectId, id, req.Content));
+    public async Task<IActionResult> Save(long projectId, Guid id, SaveFileRequest req) => await access.Get(projectId, true) is null ? NotFound() : Ok(await explorer.SaveFile(projectId, id, req.Content, req.ExpectedUpdatedAt));
     [HttpDelete("files/{id:guid}")]
     public async Task<IActionResult> Delete(long projectId, Guid id)
     {

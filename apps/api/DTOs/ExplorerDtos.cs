@@ -1,8 +1,8 @@
 namespace Axtest.Api.DTOs;
 public record FileDto(Guid Id, string Name, string Path, string Content, DateTime UpdatedAt);
 public record ExplorerDto(List<FileDto> Files, List<string> Folders);
-public record CreateFileRequest(string Name, string? Folder);
-public record SaveFileRequest(string Content);
+public record CreateFileRequest(string Name, string? Folder, string? Content = null);
+public record SaveFileRequest(string Content, DateTime? ExpectedUpdatedAt = null);
 public record FolderRequest(string Path);
 public record RenameRequest(string Name);
 public record MoveFileRequest(string? Folder);
