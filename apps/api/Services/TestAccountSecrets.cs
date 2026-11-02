@@ -32,6 +32,23 @@ public class TestAccountSecrets(AppDbContext db, IDataProtectionProvider protect
         account.VariableNamesJson = JsonSerializer.Serialize(values.Keys.Order());
         account.ProtectedValues = Protector(account).Protect(JsonSerializer.Serialize(values));
     }
+    public void Update(ProjectTestAccount account, Dictionary<string, string> changes, string url) {
+        Validate(changes);
+        if (account.TargetUrl != url) {
+            var names = JsonSerializer.Deserialize<string[]>(account.VariableNamesJson)!;
+            if (names.Any(name => !changes.TryGetValue(name, out var value) || string.IsNullOrEmpty(value)))
+                throw new ArgumentException("Re-enter all account inputs to use this account at the new address.");
+            account.TargetUrl = url;
+            Protect(account, changes);
+        } else if (changes.Count > 0) {
+            Dictionary<string, string> values;
+            try { values = JsonSerializer.Deserialize<Dictionary<string, string>>(Protector(account).Unprotect(account.ProtectedValues))!; }
+            catch (System.Security.Cryptography.CryptographicException) { throw new ArgumentException("Replace this account because its encryption key is unavailable."); }
+            foreach (var pair in changes) values[pair.Key] = pair.Value;
+            Protect(account, values);
+        }
+        account.UpdatedAt = DateTime.UtcNow;
+    }
     public async Task<Dictionary<string, string>> Resolve(long projectId, string environment, string url, Guid? accountId, Dictionary<string, string>? overrides)
     {
         Validate(overrides);

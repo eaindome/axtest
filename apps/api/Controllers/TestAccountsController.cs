@@ -34,4 +34,17 @@ public class TestAccountsController(AppDbContext db, ProjectAccess access, TestA
         if (account is null) return NotFound();
         db.ProjectTestAccounts.Remove(account); await db.SaveChangesAsync(); return NoContent();
     }
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(long projectId, Guid id, SaveTestAccountRequest req) {
+        var project = await access.Get(projectId, true);
+        if (project is null) return NotFound();
+        var account = await db.ProjectTestAccounts.SingleOrDefaultAsync(a => a.ProjectId == projectId && a.Id == id);
+        if (account is null) return NotFound();
+        if (req.Environment != account.Environment) return BadRequest("Accounts cannot be moved between environments.");
+        account.Name = req.Name.Trim();
+        if (account.Name.Length < 2) return BadRequest("Enter an account name.");
+        secrets.Update(account, req.Variables, await secrets.Url(project, req.Environment));
+        await db.SaveChangesAsync();
+        return Ok(Dto(account));
+    }
 }
