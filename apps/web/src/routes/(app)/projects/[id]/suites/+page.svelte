@@ -77,9 +77,6 @@
   const missingData = $derived(missing.filter(name => !missingCredentials.includes(name)))
   const configured = $derived(!!targetUrl && (environment === 'production' || environments.some(env => env.name === environment && env.configured)))
   const busy = $derived(submitting || results.some(run => run.status === 'pending' || run.status === 'running'))
-  const passed = $derived(results.reduce((total, run) => total + run.passedTests, 0))
-  const failed = $derived(results.reduce((total, run) => total + run.failedTests, 0))
-  const total = $derived(results.reduce((total, run) => total + run.totalTests, 0))
   const readiness = $derived(count ? [...(!configured ? ['Save an address for this environment in Configuration.'] : []), ...(missingCredentials.length ? [`Choose a saved account providing: ${missingCredentials.join(', ')}.`] : []), ...(missingData.length ? [`Provide run inputs: ${missingData.join(', ')}.`] : []), ...execution.errors, ...(chosen.length > 30 ? [`Choose up to 30 suites per batch; ${chosen.length} suites are selected.`] : []), ...execution.entries.filter(entry => entry.tests.length > 500).map(entry => `${suiteLabel(entry.file)} exceeds the limit of 500 tests per run.`)] : [])
   const control = 'h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400/40 focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
   function preferenceKey(id: number | string | undefined = project?.id) { return suitePreferenceKey($authStore.user?.id, $currentWorkspace?.id, id) }
