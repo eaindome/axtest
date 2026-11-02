@@ -10,8 +10,9 @@ Useful checks:
 - `node tests/project_workspace.cjs`: project lifecycle and permissions.
 - `node tests/frontend_project_list.cjs` and `node tests/frontend_project_pagination.cjs`: list interactions and layout.
 - `python tests/suite_security.py`: saved-account privacy and atomic suite execution.
-- `node tests/suites_authoring.cjs`: guided suite authoring, search-scoped selection, prerequisite previews and run readiness in mock mode.
-- `node tests/suites_authoring_api.cjs`: real authoring, save conflicts, advanced source preservation and execution against a disposable todo fixture.
+- `node tests/suites_authoring.cjs`: full editor drafts, toast saves, exact-test links, quick runs and restored suite context in mock mode.
+- `node tests/suites_authoring_api.cjs`: real editor authoring, saved-account reuse, conflict toasts and advanced source preservation against a disposable todo fixture.
+- `node tests/self_workspace.cjs`: runs axtest against its own new project/suite authoring journey with disposable accounts.
 - `node tests/worker_protocol.cjs`: worker validation and execution protocol.
 
 Start the API on localhost:5000 and frontend on localhost:5173 for live integration checks. Build `@axtest/core` after worker source changes. The self-test walkthrough is in `self/README.md`.

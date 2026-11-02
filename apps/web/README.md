@@ -6,15 +6,17 @@ Open **Projects**, then select the application. Projects open on **Configuration
 
 **Configuration** configures the selected URL and saves named test accounts. API-mode values are encrypted at rest using ASP.NET Data Protection and are never returned to the frontend. Local storage contains only account IDs, selections and run metadata. Accounts are bound to the project, environment and URL. After changing a URL, save a new account for it. Mock accounts remain session-only metadata.
 
-Create a suite and add behaviour tests using the guided drawers. Each test needs actions and at least one expected result. Simple tests can be edited here; grouped flows and advanced syntax remain available in the advanced editor. Opening a suite does not select it. Bulk selection follows the current search and leaves selections outside that search intact.
+Suites organises selection, readiness and combined results. New suite opens an unsaved draft in the full editor; naming it and writing its first behaviour happen together. Add test and Edit open the relevant suite/test in that same editor. Back to suites restores search, selection and results. The editor shares the environment and saved account, saves changes before running, and labels its actions Run this suite and Run this test. Grouped advanced syntax opens in Code to preserve its flow. Opening a suite does not select it; bulk selection follows the current search.
 
 **Run selected** submits the selection as one validated batch. A readiness summary explains missing setup or inputs before submission, and the execution plan lists included prerequisites. Saved accounts provide credentials; other inputs can be entered for the current visit without persisting them in browser storage. `AXTEST_CASE` gets a fresh value per suite run. Results, errors, steps and available screenshots appear beside the selection. **Rerun failed** selects failed tests and includes their prerequisites. Refresh resumes polling submitted IDs. Watch and interactive debugging will return when their execution controls are ready.
 
 Projects can be archived from their actions menu. Archived projects are hidden from the Active list, retain their data, and reject new runs. The Archived filter offers Restore and confirmed permanent deletion.
 
-Verification: `node tests/project_workspace.cjs` covers configuration, account handoff and project lifecycle. `node tests/suites_authoring.cjs` covers the guided mock workflow; `node tests/suites_authoring_api.cjs` verifies real authoring, save conflicts, source preservation and dependency execution against a todo fixture. `node tests/suite_workspace.cjs` covers saved setup, batch execution, refresh, evidence, reruns and mock isolation. `python tests/suite_security.py` covers account isolation and atomic batch validation.
+Verification: `node tests/project_workspace.cjs` covers configuration, account handoff and project lifecycle. `node tests/suites_authoring.cjs` covers connected editor navigation, draft saves, toasts and context restoration in mock mode; `node tests/suites_authoring_api.cjs` verifies real authoring, save conflicts, source preservation and dependency execution against a todo fixture. `node tests/suite_workspace.cjs` covers saved setup, batch execution, refresh, evidence, reruns and mock isolation. `python tests/suite_security.py` covers account isolation and atomic batch validation.
 
 The data switch in development selects **Mock** or **API** mode. Its choice survives refreshes. Mock mode uses the local demo data; API mode uses the ASP.NET backend and PostgreSQL. Switching mode reloads the workspace, and authentication, workspace selection, and tutorial state are stored separately for each mode.
+
+Routine save confirmations and action failures use dismissible toasts. Field validation, configuration checks, readiness blockers and test failures remain in context.
 
 ## Start
 
