@@ -18,11 +18,13 @@ type Input = {
   timeoutMs?: number
   browserExecutablePath?: string
   headed?: boolean
+  slowMoMs?: number
   variables?: Record<string, string>
   seedTestId?: string
 }
 
 async function main(input: Input): Promise<unknown> {
+  if (input.slowMoMs !== undefined && input.slowMoMs !== null && ![0, 400, 1000].includes(input.slowMoMs)) throw new Error('Choose an execution delay of 0, 400, or 1000 milliseconds.')
   for (const [key, value] of Object.entries(input.variables ?? {})) {
     if (
       !/^[A-Z][A-Z0-9_]*$/.test(key) ||
@@ -178,6 +180,7 @@ async function main(input: Input): Promise<unknown> {
         artifactDirectory: input.artifactDirectory,
         signal: abort.signal,
         headed: input.headed === true,
+        slowMoMs: input.slowMoMs,
       },
       { timeout: 7000, browserExecutablePath: input.browserExecutablePath, ...(Object.keys(input.variables ?? {}).length ? { screenshots: 'never' as const } : {}) },
     )

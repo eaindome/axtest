@@ -212,6 +212,7 @@ export type RunOptions = {
   reporter?: 'text' | 'json' | 'junit'
   bail?: boolean
   headed?: boolean
+  slowMoMs?: number
   baseUrl?: string
   signal?: AbortSignal
   artifactDirectory?: string

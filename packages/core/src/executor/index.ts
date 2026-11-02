@@ -75,7 +75,7 @@ export async function executeFile(
         : chromium
   const browser = await browserType.launch({
     headless: !options.headed,
-    slowMo: options.headed ? 400 : 0,
+    slowMo: options.headed ? options.slowMoMs ?? 400 : 0,
     ...(options.headed && cfg.browser === 'chromium' ? { args: ['--start-maximized'] } : {}),
     executablePath: cfg.browserExecutablePath ?? undefined,
   })
