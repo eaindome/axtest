@@ -19,6 +19,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         var project = await access.Get(projectId, true, allowArchived: true);
         if (project is null) return NotFound();
         if (project.ArchivedAt is not null) return Conflict("Restore this project before starting a run.");
+        if (req.SlowMoMs is int delay && delay is not (0 or 400 or 1000)) return BadRequest("Choose an execution delay of 0, 400, or 1000 milliseconds.");
         if (req.Variables is { } variables && (variables.Count > 32 || variables.Any(v =>
             !System.Text.RegularExpressions.Regex.IsMatch(v.Key, @"^AXTEST_[A-Z0-9_]{1,64}$") || v.Value is null || v.Value.Length > 4096)
             || variables.Sum(v => v.Value?.Length ?? 0) > 16384))
@@ -51,7 +52,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
             Environment = req.Environment,
             TriggeredBy = "editor",
             TotalTests = count,
-            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files, runtimeKey, headed = req.Headed }),
+            InputJson = JsonSerializer.Serialize(new { command = "run", content = req.Content, fileName = file.Path, baseUrl = url, testNames = req.TestNames, selectedTests = validation.GetProperty("selectedTests"), files, runtimeKey, headed = req.Headed, slowMoMs = req.SlowMoMs }),
         };
         db.TestRuns.Add(run);
         try { await db.SaveChangesAsync(); }
@@ -78,6 +79,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
         var project = await access.Get(projectId, true, allowArchived: true);
         if (project is null) return NotFound();
         if (project.ArchivedAt is not null) return Conflict("Restore this project before starting a run.");
+        if (req.SlowMoMs is int delay && delay is not (0 or 400 or 1000)) return BadRequest("Choose an execution delay of 0, 400, or 1000 milliseconds.");
         if (!host.IsDevelopment() || !config.GetValue("Runner:Enabled", host.IsDevelopment())) return StatusCode(503, "Browser execution requires local Development until runner isolation is configured.");
         if (HttpContext.Connection.RemoteIpAddress is not { } remote || !System.Net.IPAddress.IsLoopback(remote)) return StatusCode(403, "Browser execution requires a connection from this machine.");
         if (req.Files.Count is < 1 or > 30 || req.Files.Any(f => f is null) || req.Files.Select(f => f.FileId).Distinct().Count() != req.Files.Count) return BadRequest("Choose 1–30 different suite files.");
@@ -109,7 +111,7 @@ public class RunsController(AppDbContext db, ProjectAccess access, ExplorerServi
                 var runtimeKey = item.Values.Count > 0 ? inputs.Store(item.Values) : null;
                 if (runtimeKey is not null) keys.Add(runtimeKey);
                 item.Run.InputJson = JsonSerializer.Serialize(new { command = "run", content = item.Content, fileName = item.Run.FileName, baseUrl = url, files = reusable,
-                    testNames = req.Files.Single(f => f.FileId == item.Run.FileId).TestNames, selectedTests = item.Validation, runtimeKey, headed = req.Headed });
+                    testNames = req.Files.Single(f => f.FileId == item.Run.FileId).TestNames, selectedTests = item.Validation, runtimeKey, headed = req.Headed, slowMoMs = req.SlowMoMs });
                 db.TestRuns.Add(item.Run);
             }
             await db.SaveChangesAsync();
