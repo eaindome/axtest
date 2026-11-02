@@ -11,4 +11,4 @@ public record SaveTestAccountRequest([Required, StringLength(80, MinimumLength =
 public record TestAccountDto(Guid Id, string Name, string Environment, string TargetUrl, string[] VariableNames, DateTime UpdatedAt);
 public record SuiteFileRequest(Guid FileId, string[]? TestNames);
 public record RunSuitesRequest([Required] string Environment, [Required] List<SuiteFileRequest> Files,
-    Guid? AccountId = null, bool Headed = false, Dictionary<string, string>? Variables = null);
+    Guid? AccountId = null, bool Headed = false, Dictionary<string, string>? Variables = null, int? SlowMoMs = null);
