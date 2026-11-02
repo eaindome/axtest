@@ -8,6 +8,8 @@
   import { suitePreferenceKey, readSuitePreferences, saveSuiteContext, savedEnvironment, reconcileSuiteSelection } from '$lib/suite-context'
   import { selectedExecution, selectedInputNames, canUseVisualEditor, normalizedUrl, suiteLabel } from '$lib/suites'
   import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
+  import { runPreferences } from '$lib/run-preferences'
+  import { useMock } from '$lib/stores/dev'
   import type { TestAccount } from '$lib/api/types'
   import { currentWorkspace } from '$lib/stores/workspace'
   import { parseAxtest, serializeAxtest } from '$lib/editor/parse-axtest'
@@ -41,10 +43,10 @@
   let runController: AbortController | undefined
   let inputNames = $state<string[]>([])
   let runSetupOpen = $state(false)
-  type RunSetup = { variables: Record<string, string>; headed: boolean }
+  type RunSetup = { variables: Record<string, string>; headed: boolean; slowMoMs: number }
   let resolveInputs: ((values: RunSetup | null) => void) | null = null
-  function finishInputs(values: Record<string, string> | null, headed = false) {
-    runSetupOpen = false; inputNames = []; resolveInputs?.(values === null ? null : { variables: values, headed }); resolveInputs = null
+  function finishInputs(values: Record<string, string> | null) {
+    runSetupOpen = false; inputNames = []; resolveInputs?.(values === null ? null : { variables: values, headed: !$useMock && runSettings.headed, slowMoMs: runSettings.slowMoMs }); resolveInputs = null
   }
   function requestInputs(): Promise<RunSetup | null> {
     const names = runInputNames(editorContent, files)
@@ -70,12 +72,12 @@
   function notifyError(error: unknown) { toast(error instanceof Error ? error.message : String(error), 'error') }
   let draftSuite = $state(false), draftName = $state(''), draftError = $state('')
   let accounts = $state<TestAccount[]>([]), accountId = $state(''), accountChoices = $state<Record<string, string>>({})
-  let showBrowser = $state(false)
+  let runSettings = $state(runPreferences(undefined))
   let defaultAccounts = $state<Record<string, string | null>>({})
   let runReadiness = $state<string[]>([])
   let lastEditorRoute = ''
   function contextKey(id = activeProject?.id) { return suitePreferenceKey($authStore.user?.id, $currentWorkspace?.id, id) }
-  function persistContext() { if (activeProject) saveSuiteContext(contextKey(), { environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId } }) }
+  function persistContext() { if (activeProject) saveSuiteContext(contextKey(), { runSettings, environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId } }) }
   const availableAccounts = $derived(accounts.filter(account => account.environment === environment && account.targetUrl === normalizedUrl(effectiveUrl)))
   const account = $derived(availableAccounts.find(account => account.id === accountId))
   const visualSafe = $derived(!activeFile || canUseVisualEditor({ ...activeFile, content: editorContent }))
@@ -366,6 +368,7 @@
       await loadEnvironments(project.id)
       accounts = await api().getTestAccounts(project.id)
       const preferences = readSuitePreferences(contextKey(project.id))
+      runSettings = runPreferences(preferences.runSettings)
       environment = savedEnvironment(preferences.environment)
       accountChoices = preferences.accountChoices ?? {}
       const settings = await Promise.all((['production', 'staging', 'local'] as EnvironmentName[]).map(name => api().getProjectSetup(project.id, name)))
@@ -494,7 +497,7 @@
     if (runReadiness.length) return
     if (dirty && !(await saveFile())) return
     const extra = required.filter(name => !account?.variableNames.includes(name))
-    let setup: RunSetup = { variables: {}, headed: showBrowser }
+    let setup: RunSetup = { variables: {}, headed: !$useMock && runSettings.headed, slowMoMs: runSettings.slowMoMs }
     if (extra.length) {
       inputNames = extra; runSetupOpen = true
       const values = await new Promise<RunSetup | null>(resolve => { resolveInputs = resolve })
@@ -711,7 +714,7 @@
 </script>
 
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
-  {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} scope={`${$currentWorkspace?.id}:${activeProject?.id}:${environment}`} onSubmit={(values, headed) => finishInputs(values, headed)} onCancel={() => finishInputs(null)} />{/if}
+  {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} scope={`${$currentWorkspace?.id}:${activeProject?.id}:${environment}`} onSubmit={values => finishInputs(values)} onCancel={() => finishInputs(null)} />{/if}
   <div class="contents" inert={runSetupOpen}>
 
   {#if lessonBooting || loadingFiles}
@@ -740,6 +743,8 @@
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
+    {runSettings}
+    onRunSettings={value => { runSettings = value; persistContext() }}
     onEnvironmentChange={handleEnvironmentChange}
     onEditEnvironment={openEditEnvironmentModal}
   />
@@ -752,7 +757,6 @@
         <span class="text-xs text-zinc-500" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes · saved before running' : 'All changes saved'}</span>
         <div class="flex-1"></div>
         <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
-        <label class="flex items-center gap-2 text-xs text-zinc-500"><input type="checkbox" bind:checked={showBrowser} disabled={running} />Show browser</label>
         <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
       </div>
       <p class="text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>

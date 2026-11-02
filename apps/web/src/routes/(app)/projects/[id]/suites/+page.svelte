@@ -13,7 +13,9 @@
   import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
   import Button from '$lib/components/ui/Button.svelte'
   import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
-  import RunEvidence from '$lib/components/editor/RunEvidence.svelte'
+  import SuiteResults from '$lib/components/editor/SuiteResults.svelte'
+  import RunSettings from '$lib/components/editor/RunSettings.svelte'
+  import { runPreferences, resultsView } from '$lib/run-preferences'
   import Input from '$lib/components/ui/Input.svelte'
   import SlidePanel from '$lib/components/ui/SlidePanel.svelte'
   import { toast } from '$lib/stores/toasts'
@@ -25,8 +27,9 @@
   let environments = $state<ProjectEnvironment[]>([]), accounts = $state<TestAccount[]>([])
   let environment = $state<EnvironmentName>('production'), accountId = $state(''), query = $state(''), activeSuite = $state('')
   let selection = $state<Record<string, string[]>>({}), results = $state<RunDetail[]>([]), accountChoices = $state<Record<string, string>>({})
-  let context = $state<{ mode: string; environment: string; account: string; url: string } | null>(null)
+  let context = $state<{ mode: string; environment: string; account: string; url: string; slowMoMs?: number } | null>(null)
   let defaultAccounts = $state<Record<string, string | null>>({})
+  let runSettings = $state(runPreferences(undefined)), resultView = $state(resultsView())
   let generation = 0, pollGeneration = 0
   let pollingError = $state(false)
   let viewport = $state<HTMLDivElement>()
@@ -82,7 +85,7 @@
   function preferenceKey(id: number | string | undefined = project?.id) { return suitePreferenceKey($authStore.user?.id, $currentWorkspace?.id, id) }
   function persist() {
     if (!project) return
-    saveSuiteContext(preferenceKey(), { query, suitePage: currentSuitePage, testPage: currentTestPage, scrollTop: viewport?.scrollTop ?? 0, environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId }, selection, activeSuite, runIds: results.map(run => run.id), context })
+    saveSuiteContext(preferenceKey(), { runSettings, resultView, query, suitePage: currentSuitePage, testPage: currentTestPage, scrollTop: viewport?.scrollTop ?? 0, environment, accountId, accountChoices: { ...accountChoices, [environment]: accountId }, selection, activeSuite, runIds: results.map(run => run.id), context })
     localStorage.setItem(preferenceKey('project'), String(project.id))
   }
   function readPreferences(id: number) { return readSuitePreferences(preferenceKey(id)) }
@@ -119,6 +122,7 @@
       if (version !== generation) return
       files = explorer.files; environments = envs; accounts = savedAccounts; defaultAccounts = Object.fromEntries(settings.map(setup => [setup.environment, setup.defaultAccountId]))
       const preferences = readPreferences(id)
+      runSettings = runPreferences(preferences.runSettings); resultView = resultsView(preferences.resultView)
       query = typeof preferences.query === 'string' ? preferences.query : ''
       suitePage = Number.isSafeInteger(preferences.suitePage) && preferences.suitePage > 0 ? preferences.suitePage : 1
       testPage = Number.isSafeInteger(preferences.testPage) && preferences.testPage > 0 ? preferences.testPage : 1
@@ -181,7 +185,7 @@
   function checkText(body: string) { const check = parseAssertion(body); return check.type === 'is_visible' ? `${check.target} appears` : check.type === 'is_not_visible' ? `${check.target} is hidden` : check.type === 'contains' ? `${check.target} contains ${check.value}` : check.type === 'url_contains' ? `URL contains ${check.value}` : body }
   function changeEnvironment(value: string) { accountChoices = { ...accountChoices, [environment]: accountId }; environment = value as EnvironmentName; const previous = accountChoices[environment]; accountId = typeof previous === 'string' ? (availableAccounts.some(account => account.id === previous) ? previous : '') : defaultAccounts[environment] && availableAccounts.some(account => account.id === defaultAccounts[environment]) ? defaultAccounts[environment]! : availableAccounts[0]?.id ?? ''; persist() }
   function openSetup() { if (project) { persist(); void goto(`/projects/${project.id}`) } }
-  async function launch(mode: 'run' | 'watch', failedOnly = false) {
+  async function launch(failedOnly = false) {
     if (!project || project.archivedAt || busy) return
     if (failedOnly) { selection = Object.fromEntries(results.map(run => [files.find(file => file.path === run.suiteName)?.id ?? '', run.results.filter(result => result.status === 'failed').map(result => result.testName)]).filter(([id]) => id)); persist() }
     if (readiness.length) return
@@ -189,8 +193,8 @@
     if (!choices.length) return
     submitting = true; error = ''
     try {
-      const runs = await api().runSuites(project.id, { environment, files: choices.map(entry => ({ fileId: entry.file!.id, testNames: entry.names })), accountId: account?.id, headed: mode === 'watch', variables: Object.fromEntries(Object.entries(runValues).filter(([name, value]) => required.includes(name) && value.trim())) })
-      results = runs.map(run => ({ ...run, results: [] })); context = { mode, environment, account: account?.name ?? 'No account', url: targetUrl }; persist()
+      const runs = await api().runSuites(project.id, { environment, files: choices.map(entry => ({ fileId: entry.file!.id, testNames: entry.names })), accountId: account?.id, headed: !$useMock && runSettings.headed, slowMoMs: runSettings.slowMoMs, variables: Object.fromEntries(Object.entries(runValues).filter(([name, value]) => required.includes(name) && value.trim())) })
+      results = runs.map(run => ({ ...run, results: [] })); context = { mode: !$useMock && runSettings.headed ? 'visible' : 'headless', slowMoMs: runSettings.slowMoMs, environment, account: account?.name ?? 'No account', url: targetUrl }; resultView = resultsView(); persist()
       void follow(runs.map(run => run.id))
     } catch (reason) { toast(message(reason), 'error') } finally { submitting = false }
   }
@@ -220,7 +224,7 @@
       <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end">
         <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Environment</span><DropdownMenu class="w-full" label="Environment" value={environment} disabled={busy} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} onchange={changeEnvironment} /></div>
         <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Test account</span><DropdownMenu class="w-full" label="Test account" value={accountId} disabled={busy} options={[{ value: '', label: required.some(name => /USERNAME|PASSWORD|TOKEN|SECRET|KEY/.test(name)) ? 'Choose a saved account' : 'No account required' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} onchange={value => { accountId = value; persist() }} /></div>
-        <Button onclick={() => launch('run')} disabled={!count || busy || !!project.archivedAt || !!readiness.length} loading={submitting}>Run selected</Button>
+        <div class="flex flex-wrap gap-2"><RunSettings value={runSettings} disabled={busy} onchange={value => { runSettings = value; persist() }} /><Button onclick={() => launch()} disabled={!count || busy || !!project.archivedAt || !!readiness.length} loading={submitting}>Run selected</Button></div>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{count} selected{#if execution.included.length} · {execution.included.length} prerequisites included{/if} · {execution.count} will run</p><p class="text-xs text-zinc-500 break-all mt-1">{targetUrl || 'No address configured'}{#if environment === 'production'} · Production target{/if}{#if $useMock} · Simulated results in mock mode{/if}</p></div><div class="flex gap-3 text-xs font-medium">{#if runInputNames.length}<button disabled={busy} class="text-amber-700 dark:text-amber-400" onclick={() => { inputsOpen = true }}>Run inputs</button>{/if}<button disabled={busy} class="text-zinc-500" onclick={openSetup}>Configuration</button></div></div>
       {#if !count}<p class="text-xs text-zinc-500">Open a suite to inspect it. Use checkboxes to include tests in a run.</p>{:else if readiness.length}<div class="rounded-lg border border-amber-200 dark:border-amber-900 p-3 space-y-2" role="status"><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Before this selection can run</p><ul class="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">{#each readiness as reason}<li>{reason}</li>{/each}</ul><div class="flex flex-wrap gap-3 text-xs font-medium">{#if !configured || missingCredentials.length}<a class="text-amber-700 dark:text-amber-400" onclick={persist} href={`/projects/${project.id}?needs=${!configured ? 'environment' : 'account'}&inputs=${encodeURIComponent(missingCredentials.join(', '))}`}>Configure access</a>{/if}{#if missingData.length}<button class="text-amber-700 dark:text-amber-400" onclick={() => { inputsOpen = true }}>Provide run inputs</button>{/if}</div></div>{:else}<p class="text-xs text-emerald-700 dark:text-emerald-400">Ready to run this selection.</p>{/if}
@@ -264,11 +268,7 @@
           {:else}<p class="p-6 text-sm text-zinc-500">Choose a suite from this page to browse its tests.</p>{/if}
         </section>
 
-      <section class="surface overflow-hidden" aria-label="Suite results"><div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3"><div><h2 class="section-heading">Results{#if results.length}<span class="ml-2 text-sm font-normal" role="status">{passed}/{total} passed{busy ? ' · Running…' : ''}</span>{/if}</h2>{#if context}<p class="text-xs text-zinc-500 mt-1">{context.mode === 'watch' ? 'Watch' : 'Run'} · {context.environment} · {context.account}</p>{/if}</div>{#if failed && !busy && !project.archivedAt}<Button variant="secondary" size="sm" onclick={() => launch('run', true)}>Rerun failed</Button>{/if}</div>
-        {#if !results.length}<p class="text-sm text-zinc-500 p-6">Select tests and run them. Results and failure evidence will appear here.</p>{/if}
-        {#each results as run}<div class="p-5 border-b last:border-b-0 border-zinc-100 dark:border-zinc-800"><div class="flex flex-wrap justify-between gap-2 text-sm"><h3 class="font-semibold break-all text-zinc-800 dark:text-zinc-200">{files.find(file => file.path === run.suiteName) ? suiteLabel(files.find(file => file.path === run.suiteName)!) : run.suiteName}</h3><span class={run.status === 'failed' ? 'text-red-600' : run.status === 'passed' ? 'text-green-700 dark:text-green-400' : 'text-zinc-500'}>{run.status} · {run.passedTests}/{run.totalTests} passed</span></div>{#if run.errorMessage}<p class="error-banner mt-3" role="alert">{run.errorMessage}</p>{/if}{#each run.results as result}<details class="mt-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800" open={result.status === 'failed'}><summary class="cursor-pointer text-sm text-zinc-800 dark:text-zinc-200"><span class="font-medium">{result.testName}</span><span class="ml-2 text-xs text-zinc-500">{result.status} · {result.durationMs}ms</span></summary>{#if result.errorMessage}<p class="mt-3 text-sm text-red-600 break-words">{result.errorMessage}</p>{/if}<RunEvidence {result} />{#if !project.archivedAt && files.some(file => file.path === run.suiteName)}<button class="mt-3 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={() => openEditor(files.find(file => file.path === run.suiteName), result.testName)}>Edit this test</button>{/if}</details>{/each}</div>{/each}
-        {#if results.length}<div class="p-4"><a class="text-xs text-amber-700 dark:text-amber-400 font-medium" href={`/projects/${project.id}/history`}>Open project run history</a></div>{/if}
-      </section>
+      <SuiteResults runs={results} {files} {busy} {context} view={resultView} onview={value => { resultView = value; persist() }} onedit={openEditor} onrerun={() => launch(true)} archived={!!project.archivedAt} historyHref={`/projects/${project.id}/history`} />
       </div>
     </div>
     {/if}
