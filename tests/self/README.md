@@ -8,7 +8,7 @@ Open **Projects**, then **axtest Self Test**. In **Configuration**, set the sele
 
 Choose **Run selected** for the six passing cases. The readiness summary explains missing configuration, and the execution plan lists any included prerequisites. There is no per-run credentials dialog. Case names are generated uniquely by the runner. The result panel combines both suites, restores after refresh, and offers **Rerun failed** when appropriate. Select Evidence separately to verify its intentional failure and screenshot. An account selected for a public test does not suppress that test's evidence when no credentials are used.
 
-The environment, account choice and selection are remembered. Use **New suite**, **Add test**, **Edit in editor** or **Open editor** to author in the full editor. **Back to suites** restores the execution workspace. The editor shares the environment/account and offers **Run this suite** or **Run this test**; it saves edits before execution. Grouped advanced flows open in Code. Watch, breakpoints, pausing and stepping are not available in this workspace yet. The editor walkthrough below remains available for isolated file runs, including its existing browser display option.
+The environment, account choice and selection are remembered. Use **New suite**, **Add test**, **Edit in editor** or **Open editor** to author in the full editor. **Back to suites** restores the execution workspace. The editor shares the environment/account and offers **Run this suite** or **Run this test**; it saves edits before execution. Grouped advanced flows open in Code. Watch, breakpoints, pausing and stepping are not available in this workspace yet. The editor walkthrough below remains available for isolated file runs, including shared Run settings.
 
 ## Prepare
 
@@ -31,7 +31,7 @@ Each test gets a fresh browser context. A test's logout does not sign out your i
 
 The environment selector chooses the runner's URL. Configure Production, Staging and Local in the project's **Configuration** tab. For testing axtest on this machine, use `http://localhost:5173`.
 
-With **Show browser** off, Chromium runs headlessly. Enable it in the editor before **Run this suite** or **Run this test**. It opens on the API computer, not as a live stream inside the editor, and closes when the run finishes.
+Open **Run settings** beside Run in either Suites or the editor. With **Show browser** off, Chromium runs headlessly. Enable it to watch execution, then choose Fast, Standard or Slow pacing before running. These preferences are shared between both views. It opens on the API computer, not as a live stream inside the editor, and closes when the run finishes.
 
 ## Manual checks
 

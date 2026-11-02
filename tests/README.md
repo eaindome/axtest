@@ -13,6 +13,8 @@ Useful checks:
 - `node tests/suites_authoring.cjs`: full editor drafts, toast saves, exact-test links, quick runs and restored suite context in mock mode.
 - `node tests/suites_authoring_api.cjs`: real editor authoring, saved-account reuse, conflict toasts and advanced source preservation against a disposable todo fixture.
 - `node tests/suite_pagination.cjs`: large suite/test lists, page-scoped selection, stable previews and editor return.
+- `node tests/run_results.cjs`: ten-result pages, filtering, batch scope and restored result views.
+- `node tests/frontend_run_options.cjs`: shared Run settings, real visible Fast/Slow browsers, headless speed and input validation.
 - `node tests/self_workspace.cjs`: runs axtest against its own new project/suite authoring journey with disposable accounts.
 - `node tests/worker_protocol.cjs`: worker validation and execution protocol.
 
