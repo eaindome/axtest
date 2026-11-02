@@ -1,0 +1,10 @@
+AUTH self-login
+STEPS
+ navigate to "/login?mode=api"
+ wait for "Username" to appear
+ type "{{AXTEST_USERNAME}}" in "Username"
+ type "{{AXTEST_PASSWORD}}" in "Password"
+ click "Sign in"
+ wait for "A clearer view of quality." to appear
+ASSERT
+ assert url contains "/dashboard"

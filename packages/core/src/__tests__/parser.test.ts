@@ -282,6 +282,16 @@ describe('parseAssertionLine — URL', () => {
   it('redirects to',   () => expect(parseAssertionLine('page redirects to "/login"')).toMatchObject({ type: 'redirects_to', expected: '/login' }))
 })
 
+describe('runtime selector and assertion inputs', () => {
+  it('resolves targets and expectations while retaining placeholders in reported steps', () => {
+    process.env.AXTEST_CASE = 'unique-project'
+    try {
+      expect(parseActionLine('click "Open tests for {{AXTEST_CASE}}"')).toMatchObject({ target: 'Open tests for unique-project', raw: 'click "Open tests for {{AXTEST_CASE}}"' })
+      expect(parseAssertionLine('assert "{{AXTEST_CASE}}" is_visible')).toMatchObject({ target: 'unique-project', raw: 'assert "{{AXTEST_CASE}}" is_visible' })
+    } finally { delete process.env.AXTEST_CASE }
+  })
+})
+
 describe('parseAssertionLine — unknown assertion throws', () => {
   it('throws ParseError on unknown input', () => {
     expect(() => parseAssertionLine('sky is blue')).toThrow(ParseError)

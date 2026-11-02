@@ -1,0 +1,36 @@
+AUTH self-login
+
+TEST "Create a project and save its first file"
+ ID self-create-project-file
+ STEPS
+  navigate to "/projects"
+  wait for "New project" to appear
+  click "New project"
+  type "Self test {{AXTEST_CASE}}" in "Project name"
+  type "http://localhost:5173" in "Production URL"
+  type "Disposable project created by the axtest self-test suite" in "Description"
+  click "Create Project"
+  wait for "Self test {{AXTEST_CASE}}" to appear
+ ASSERT
+  assert "Self test {{AXTEST_CASE}}" is_visible
+ STEPS
+  click "Self test {{AXTEST_CASE}}"
+  wait for "Configuration" to appear
+  click "Create your first test"
+  wait for "modules" to appear
+  click "New file in modules"
+  type "self-created.axtest" in "name.axtest"
+  press "Enter"
+  wait for "self-created.axtest" to appear
+ ASSERT
+  assert url contains "/editor"
+  assert "self-created.axtest" is_visible
+
+TEST "Open account settings"
+ ID self-settings
+ STEPS
+  navigate to "/settings"
+  wait for "Current password" to appear
+ ASSERT
+  assert "Change password" is_visible
+  assert "Confirm new password" is_visible

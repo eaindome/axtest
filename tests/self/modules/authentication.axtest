@@ -1,0 +1,52 @@
+TEST "Unauthenticated project access returns to sign in"
+ ID private-projects
+ STEPS
+  navigate to "/projects?mode=api"
+  wait for "Username" to appear
+ ASSERT
+  assert url contains "/login"
+
+TEST "Invalid credentials are rejected"
+ ID invalid-login
+ STEPS
+  navigate to "/login?mode=api"
+  wait for "Username" to appear
+  type "axtest_nonexistent_account" in "Username"
+  type "invalid-password-for-test" in "Password"
+  click "Sign in"
+  wait for "Invalid username or password." to appear
+ ASSERT
+  assert "Invalid username or password." is_visible
+  assert url contains "/login"
+
+TEST "Owner signs in and opens projects"
+ ID owner-login
+ STEPS
+  navigate to "/login?mode=api"
+  wait for "Username" to appear
+  type "{{AXTEST_USERNAME}}" in "Username"
+  type "{{AXTEST_PASSWORD}}" in "Password"
+  click "Sign in"
+  wait for "A clearer view of quality." to appear
+ ASSERT
+  assert url contains "/dashboard"
+ STEPS
+  navigate to "/projects"
+  wait for "New project" to appear
+ ASSERT
+  assert url contains "/projects"
+
+TEST "Sign out returns to sign in"
+ ID owner-logout
+ STEPS
+  navigate to "/login?mode=api"
+  wait for "Username" to appear
+  type "{{AXTEST_USERNAME}}" in "Username"
+  type "{{AXTEST_PASSWORD}}" in "Password"
+  click "Sign in"
+  wait for "A clearer view of quality." to appear
+  click "Account options"
+  click "Sign out"
+  wait for "Username" to appear
+ ASSERT
+  assert url contains "/login"

@@ -1,0 +1,7 @@
+TEST "Evidence control intentionally fails"
+ ID self-evidence-control
+ STEPS
+  navigate to "/login?mode=api"
+  wait for "Username" to appear
+ ASSERT
+  assert "AXTEST_EXPECTED_MISSING_EVIDENCE_CONTROL" is_visible
