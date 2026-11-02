@@ -15,9 +15,9 @@ function visibleWindows() {
 ;(async () => {
   let pings = []
   const fixture = http.createServer((req, res) => {
-    if (req.url === '/ping') { pings.push(Date.now()); res.end('ok'); return }
+    if (req.url.startsWith('/ping?')) { pings.push(Number(new URL(req.url, 'http://localhost').searchParams.get('at'))); res.end('ok'); return }
     res.setHeader('Content-Type', 'text/html')
-    res.end('<!doctype html><html><body><button onclick="fetch(\'/ping\');if(++window.count===4)document.querySelector(\'h1\').textContent=\'Done\'">Ping</button><h1>Ready</h1><script>window.count=0</script></body></html>')
+    res.end('<!doctype html><html><body><button onclick="fetch(\'/ping?at=\'+Date.now());if(++window.count===4)document.querySelector(\'h1\').textContent=\'Done\'">Ping</button><h1>Ready</h1><script>window.count=0</script></body></html>')
   })
   await new Promise(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const browser = await chromium.launch()
@@ -41,7 +41,8 @@ function visibleWindows() {
     assert.equal(detail.status, 'passed', JSON.stringify(detail))
     if (process.platform === 'win32') assert.equal(observed, expectVisible, 'Desktop browser visibility must match Run settings.')
     assert.equal(pings.length, 4)
-    return pings.slice(1).map((time, index) => time - pings[index])
+    const ordered = [...pings].sort((a, b) => a - b)
+    return ordered.slice(1).map((time, index) => time - ordered[index])
   }
   try {
     page = await browser.newPage({ viewport: { width: 1440, height: 1050 } })
@@ -95,7 +96,7 @@ function visibleWindows() {
     client = await request.newContext({ storageState: await page.context().storageState() })
     await browser.close()
     const slow = await waitRun(queued[0].id, true, slowBaseline)
-    assert(slow.every(gap => gap >= 750), 'Slow mode must visibly pace the actual clicks.')
+    assert(slow.every(gap => gap >= 750), 'Slow mode must visibly pace the actual clicks: ' + JSON.stringify(slow))
     pings = []
     const fastBaseline = visibleWindows()
     const fastRun = await call('POST', `/api/projects/${project.id}/runs/file?wait=false`, { environment: 'production', fileId: file.id, content, headed: true, slowMoMs: 0 }, 202)
