@@ -12,6 +12,7 @@
   import { discoverSuites, selectedInputNames, normalizedUrl } from '$lib/suites'
   import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
   import Button from '$lib/components/ui/Button.svelte'
+  import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import RunEvidence from '$lib/components/editor/RunEvidence.svelte'
 
   let mounted = $state(false), loading = $state(true), submitting = $state(false), error = $state('')
@@ -20,6 +21,7 @@
   let environment = $state<EnvironmentName>('production'), accountId = $state(''), query = $state(''), activeSuite = $state('')
   let selection = $state<Record<string, string[]>>({}), results = $state<RunDetail[]>([]), accountChoices = $state<Record<string, string>>({})
   let context = $state<{ mode: string; environment: string; account: string; url: string } | null>(null)
+  let defaultAccounts = $state<Record<string, string | null>>({})
   let generation = 0, pollGeneration = 0
   let pollingError = $state(false)
   const suites = $derived(discoverSuites(files))
@@ -74,18 +76,18 @@
     project = projects.find(project => project.id === id) ?? null
     if (!project) { loading = false; return }
     try {
-      const [explorer, envs, savedAccounts] = await Promise.all([api().getExplorer(id), api().getEnvironments(id), api().getTestAccounts(id)])
+      const [explorer, envs, savedAccounts, ...settings] = await Promise.all([api().getExplorer(id), api().getEnvironments(id), api().getTestAccounts(id), ...(['production', 'staging', 'local'] as EnvironmentName[]).map(name => api().getProjectSetup(id, name))])
       if (version !== generation) return
-      files = explorer.files; environments = envs; accounts = savedAccounts
+      files = explorer.files; environments = envs; accounts = savedAccounts; defaultAccounts = Object.fromEntries(settings.map(setup => [setup.environment, setup.defaultAccountId]))
       const preferences = readPreferences(id)
       environment = ['production', 'staging', 'local'].includes(preferences.environment) ? preferences.environment : 'production'
-      accountId = typeof preferences.accountId === 'string' ? preferences.accountId : ''
+      accountId = typeof preferences.accountId === 'string' && preferences.accountId ? preferences.accountId : defaultAccounts[environment] ?? ''
       accountChoices = preferences.accountChoices && typeof preferences.accountChoices === 'object' && Object.values(preferences.accountChoices).every(value => typeof value === 'string') ? preferences.accountChoices : {}
       selection = preferences.selection && typeof preferences.selection === 'object' && Object.values(preferences.selection).every(value => Array.isArray(value) && value.every(name => typeof name === 'string')) ? preferences.selection : {}
       activeSuite = suites.some(file => file.id === preferences.activeSuite) ? preferences.activeSuite : suites[0]?.id ?? ''
       context = preferences.context && typeof preferences.context === 'object' ? preferences.context : null
       if (accountId && !availableAccounts.some(account => account.id === accountId)) accountId = ''
-      else if (typeof preferences.accountId !== 'string') accountId = availableAccounts[0]?.id ?? ''
+      else if (!accountId && typeof preferences.accountId !== 'string') accountId = availableAccounts[0]?.id ?? ''
       if (Array.isArray(preferences.runIds) && preferences.runIds.length && preferences.runIds.length <= 30) void follow(preferences.runIds.filter((id: unknown) => Number.isSafeInteger(id)))
       else persist()
     } catch (reason) { if (version === generation) error = message(reason) }
@@ -99,12 +101,12 @@
   }
   function toggleTest(id: string, name: string) { const names = selection[id] ?? []; selection = { ...selection, [id]: names.includes(name) ? names.filter(value => value !== name) : [...names, name] }; persist() }
   function selectAll(clear = false) { selection = clear ? {} : Object.fromEntries(suites.map(file => [file.id, file.parsed.tests.map(test => test.name)])); persist() }
-  function changeEnvironment(value: string) { accountChoices = { ...accountChoices, [environment]: accountId }; environment = value as EnvironmentName; const previous = accountChoices[environment]; accountId = typeof previous === 'string' ? (availableAccounts.some(account => account.id === previous) ? previous : '') : availableAccounts[0]?.id ?? ''; persist() }
+  function changeEnvironment(value: string) { accountChoices = { ...accountChoices, [environment]: accountId }; environment = value as EnvironmentName; const previous = accountChoices[environment]; accountId = typeof previous === 'string' ? (availableAccounts.some(account => account.id === previous) ? previous : '') : defaultAccounts[environment] && availableAccounts.some(account => account.id === defaultAccounts[environment]) ? defaultAccounts[environment]! : availableAccounts[0]?.id ?? ''; persist() }
   function openSetup() { if (project) { persist(); void goto(`/projects/${project.id}`) } }
   async function launch(mode: 'run' | 'watch', failedOnly = false) {
     if (!project || project.archivedAt || busy) return
     if (failedOnly) { selection = Object.fromEntries(results.map(run => [files.find(file => file.path === run.suiteName)?.id ?? '', run.results.filter(result => result.status === 'failed').map(result => result.testName)]).filter(([id]) => id)); persist() }
-    if (!configured || missing.length) { openSetup(); return }
+    if (!configured || missing.length) { persist(); void goto(`/projects/${project.id}?needs=${!configured ? 'environment' : 'account'}&inputs=${encodeURIComponent(missing.join(', '))}`); return }
     const choices = failedOnly ? results.map(run => ({ file: files.find(file => file.path === run.suiteName), names: run.results.filter(result => result.status === 'failed').map(result => result.testName) })).filter(entry => entry.file && entry.names.length) : chosen
     if (!choices.length) return
     submitting = true; error = ''
@@ -138,8 +140,8 @@
   {:else}
   <section class="surface p-5 space-y-4" aria-label="Run configuration">
     <div class="grid gap-4 md:grid-cols-2">
-      <label class="text-xs font-medium text-zinc-500">Environment<select aria-label="Environment" class={`${control} mt-2 w-full`} value={environment} disabled={busy || loading} onchange={event => changeEnvironment(event.currentTarget.value)}><option value="production">Production</option><option value="staging">Staging</option><option value="local">Local</option></select></label>
-      <label class="text-xs font-medium text-zinc-500">Test account<select aria-label="Test account" class={`${control} mt-2 w-full`} value={accountId} disabled={busy || loading} onchange={event => { accountId = event.currentTarget.value; persist() }}><option value="">{required.length ? 'Select a saved account' : 'No account required'}</option>{#each availableAccounts as account}<option value={account.id}>{account.name}</option>{/each}</select></label>
+      <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Environment</span><DropdownMenu class="w-full" label="Environment" value={environment} disabled={busy || loading} options={[{ value: 'production', label: 'Production' }, { value: 'staging', label: 'Staging' }, { value: 'local', label: 'Local' }]} onchange={changeEnvironment} /></div>
+      <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Test account</span><DropdownMenu class="w-full" label="Test account" value={accountId} disabled={busy || loading} options={[{ value: '', label: required.length ? 'Select a saved account' : 'No account required' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} onchange={value => { accountId = value; persist() }} /></div>
     </div>
     <div class="flex flex-wrap items-center justify-between gap-3"><div class="min-w-0"><p class="text-xs font-mono text-zinc-500 break-all">{targetUrl || 'Environment URL not configured'}</p><p class={`text-xs mt-1 ${configured && !missing.length ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>{configured && !missing.length ? 'Ready to run' : 'Setup needed'}{#if $useMock} · Mock results are simulated{/if}</p></div><Button variant="secondary" size="sm" disabled={!project || busy || loading} onclick={openSetup}>Configuration</Button></div>
   </section>
