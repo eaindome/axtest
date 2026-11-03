@@ -6,12 +6,16 @@ export interface EditorPanelSizes {
   explorer: number
   outline: number
   results: number
+  explorerOpen: boolean
+  outlineOpen: boolean
 }
 
 const DEFAULTS: EditorPanelSizes = {
   explorer: 208,
   outline: 224,
   results: 220,
+  explorerOpen: true,
+  outlineOpen: false,
 }
 
 export function loadPanelSizes(): EditorPanelSizes {
