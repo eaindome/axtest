@@ -75,11 +75,14 @@
         type="button"
         onclick={toggleSidebarCompact}
         class="absolute top-4 left-3 z-40 size-8 rounded-md border border-zinc-200/80 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 shadow-sm transition-all duration-200"
-        aria-label={sidebarCompact ? 'Expand sidebar' : 'Shrink sidebar'}
-        title={sidebarCompact ? 'Expand sidebar' : 'Shrink sidebar'}
+        aria-label={sidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!sidebarCompact}
+        title={sidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        <svg class="size-4 mx-auto transition-transform duration-200 {sidebarCompact ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        <svg class="size-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M9 4v16" />
+          {#if !sidebarCompact}<path d="M5.5 8h1M5.5 11h1M5.5 14h1" stroke-linecap="round" />{/if}
         </svg>
       </button>
       {#if !isEditor}
