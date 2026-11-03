@@ -61,8 +61,9 @@
 
   let dragIndex = $state<number | null>(null)
   let dropIndex = $state<number | null>(null)
+  let rowScopes = $state<Record<string, boolean>>({})
 
-  const inputCls = 'flex-1 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md px-2.5 py-1.5 outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400/20'
+  const inputCls = 'min-w-[8rem] flex-1 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md px-2.5 py-1.5 outline-none focus:border-zinc-400 dark:focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400/20'
   const dependsOpts = $derived(dependsOnOptions(allTests, test.id))
 
   function updateAssertion(stepId: string, patch: Partial<{ type: AssertionType; target: string; value: string }>) {
@@ -114,6 +115,13 @@
   }
 </script>
 
+{#snippet field(label: string, value: string, placeholder: string, onchange: (value: string) => void)}
+  <label class="min-w-[9rem] flex-1 space-y-1">
+    <span class="block text-xs text-zinc-500">{label}</span>
+    <input {value} {placeholder} oninput={event => onchange(event.currentTarget.value)} class={`w-full ${inputCls}`} />
+  </label>
+{/snippet}
+
 <div
   id="test-{test.id}"
   class="bg-white dark:bg-zinc-900 border rounded-xl overflow-hidden transition-shadow
@@ -148,15 +156,17 @@
       <span class="size-2 rounded-full bg-red-500 shrink-0" title="Failed"></span>
     {/if}
 
-    <input
-      value={test.name}
-      oninput={(e) => onUpdate({ name: (e.target as HTMLInputElement).value })}
-      onclick={onSelect}
-      class="flex-1 min-w-0 text-sm font-semibold text-zinc-800 dark:text-zinc-100 bg-transparent outline-none
-             focus:bg-white dark:focus:bg-zinc-900 focus:px-2 focus:-mx-2 focus:rounded transition-all"
-      placeholder={flow ? 'Flow name' : 'Test name'}
-      aria-label={flow ? 'Flow name' : 'Test name'}
-    />
+    <div class="flex-1 min-w-0">
+      <label for={`behaviour-${test.id}`} class="block text-xs font-medium text-zinc-500 mb-1">{flow ? 'Flow name' : 'Behaviour name'}</label>
+      <input
+        id={`behaviour-${test.id}`}
+        value={test.name}
+        oninput={(e) => onUpdate({ name: (e.target as HTMLInputElement).value })}
+        onclick={onSelect}
+        class="w-full min-w-0 text-sm font-semibold text-zinc-800 dark:text-zinc-100 bg-transparent rounded outline-none focus:ring-1 focus:ring-zinc-400/40"
+        placeholder={flow ? 'Name this reusable flow' : 'For example, create a todo item'}
+      />
+    </div>
 
     <button
       type="button"
@@ -174,29 +184,8 @@
           <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
         </svg>
       {/if}
-      Run this test
+      {flow ? 'Run this flow' : 'Run this test'}
     </button>
-
-    {#if canGenerate && onGenerate}
-      <button
-        type="button"
-        onclick={onGenerate}
-        disabled={generating}
-        title="Generate positive, negative, and edge cases from this seed"
-        class="h-7 px-2 flex items-center gap-1 rounded-md text-xs font-medium shrink-0 transition-colors
-               bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300
-               hover:bg-violet-100 dark:hover:bg-violet-900/40 disabled:opacity-50"
-      >
-        {#if generating}
-          <Spinner size="sm" />
-        {:else}
-          <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-          </svg>
-        {/if}
-        Generate
-      </button>
-    {/if}
 
     {#if !flow}<button
       type="button"
@@ -211,35 +200,14 @@
   </div>
 
   {#if !collapsed}
-    <!-- Kind & depends on -->
-    {#if !flow}<div class="px-4 py-2 border-b border-zinc-50 dark:border-zinc-800/80 space-y-2">
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-zinc-400 shrink-0 w-20">Kind</span>
-        <DropdownMenu label="Test kind"
-          value={test.kind}
-          options={TEST_KIND_OPTIONS}
-          class="flex-1"
-          onchange={(v) => onUpdate({ kind: v as TestKind })}
-        />
-      </div>
-      {#if test.generatedFrom}
-        <p class="text-xs text-zinc-400 pl-20">Generated from “{test.generatedFrom}”</p>
-      {/if}
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-zinc-400 shrink-0 w-20">Depends on</span>
-        <DropdownMenu label="Test prerequisite"
-          value={allTests.find(item => item.id === test.dependsOn)?.name ?? test.dependsOn}
-          options={dependsOpts}
-          class="flex-1"
-          onchange={(v) => onUpdate({ dependsOn: v })}
-        />
-      </div>
-    </div>
-
-    {/if}
     <!-- Steps -->
     <div class="px-4 pt-3 pb-2">
-      <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Steps</p>
+      <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Actions</p>
+      <p class="mb-3 text-xs text-zinc-500">What should the user do? Add actions in the order they happen.</p>
+      <details class="mb-3 text-xs text-zinc-500">
+        <summary class="cursor-pointer font-medium">How to identify an element</summary>
+        <div class="pt-2 space-y-2"><p>Use the text on a button or link, or a field's label or placeholder. For icon buttons, use their accessible label.</p><p>If the same button appears in multiple table rows, use Within a row and text that identifies the intended row.</p><p>If a run cannot find the target, check its spelling, the current page, whether it is visible, and whether an earlier action needs a wait.</p></div>
+      </details>
       <div class="space-y-1">
         {#each test.steps as step, si (step.id)}
           <div
@@ -250,7 +218,7 @@
             ondragleave={onDragLeave}
             ondrop={(e) => onDrop(e, si)}
             ondragend={onDragEnd}
-            class="flex items-center gap-2 group border-l-2 {STEP_META[step.type].border} pl-2 py-1 rounded-r-md transition-colors
+            class="flex flex-wrap items-center gap-2 group border-l-2 {STEP_META[step.type].border} pl-2 py-1 rounded-r-md transition-colors
                    {dragIndex === si ? 'opacity-40' : ''}
                    {dropIndex === si && dragIndex !== si ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}"
           >
@@ -274,39 +242,47 @@
             />
 
             {#if step.type === 'navigate'}
-              <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="path or URL" class={inputCls} />
+              {@render field('Page address', step.target, 'For example, /tasks', value => onUpdateStep('steps', step.id, { target: value }))}
             {:else if step.type === 'wait'}
-              <input aria-label="Wait target" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="element / label" class={inputCls} />
-              <DropdownMenu label="Wait condition" value={step.value === 'disappear' ? 'disappear' : 'appear'} options={[{ value: 'appear', label: 'Appear' }, { value: 'disappear', label: 'Disappear' }]} onchange={value => onUpdateStep('steps', step.id, { value })} />
+              {@render field('Wait target', step.target, 'For example, Loading tasks', value => onUpdateStep('steps', step.id, { target: value }))}
+              <div class="space-y-1"><p class="text-xs text-zinc-500">Wait until</p><DropdownMenu label="Wait condition" value={step.value === 'disappear' ? 'disappear' : 'appear'} options={[{ value: 'appear', label: 'Appear' }, { value: 'disappear', label: 'Disappear' }]} onchange={value => onUpdateStep('steps', step.id, { value })} /></div>
             {:else if step.type === 'custom'}
-              <input aria-label="Axtest action" value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="Axtest action" class={inputCls} />
+              {@render field('Axtest action', step.target, 'For example, press "Enter"', value => onUpdateStep('steps', step.id, { target: value }))}
             {:else if step.type === 'click'}
-              <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="button / label" class={inputCls} />
-              <input value={step.context} oninput={(e) => onUpdateStep('steps', step.id, { context: (e.target as HTMLInputElement).value })} placeholder="in row (optional)" class="w-32 {inputCls}" />
+              {@render field('Click target', step.target, 'For example, Add task', value => onUpdateStep('steps', step.id, { target: value }))}
             {:else if step.type === 'type'}
-              <input value={step.value} oninput={(e) => onUpdateStep('steps', step.id, { value: (e.target as HTMLInputElement).value })} placeholder="text" class={inputCls} />
-              <span class="text-xs text-zinc-400 shrink-0">in</span>
-              <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="field" class="w-32 {inputCls}" />
+              {@render field('Text to enter', step.value, 'For example, Buy milk', value => onUpdateStep('steps', step.id, { value }))}
+              {@render field('Field name', step.target, 'For example, New task', value => onUpdateStep('steps', step.id, { target: value }))}
             {:else if step.type === 'select'}
-              <input value={step.value} oninput={(e) => onUpdateStep('steps', step.id, { value: (e.target as HTMLInputElement).value })} placeholder="option" class={inputCls} />
-              <span class="text-xs text-zinc-400 shrink-0">in</span>
-              <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="field" class="w-32 {inputCls}" />
+              {@render field('Option label', step.value, 'For example, High priority', value => onUpdateStep('steps', step.id, { value }))}
+              {@render field('Field name', step.target, 'For example, Priority', value => onUpdateStep('steps', step.id, { target: value }))}
             {:else if step.type === 'clear'}
-              <input value={step.target} oninput={(e) => onUpdateStep('steps', step.id, { target: (e.target as HTMLInputElement).value })} placeholder="field name" class={inputCls} />
+              {@render field('Field name', step.target, 'For example, New task', value => onUpdateStep('steps', step.id, { target: value }))}
             {/if}
 
             <button
               type="button"
               onclick={() => onDeleteStep('steps', step.id)}
-              aria-label="Delete step"
-              class="size-6 shrink-0 rounded-md flex items-center justify-center text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Delete action"
+              class="size-6 shrink-0 rounded-md flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
             >
               <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+            <p class="basis-full text-xs text-zinc-500">{step.type === 'navigate' ? 'Paths such as /tasks open relative to the target URL in Run setup. A full URL opens that address.' : step.type === 'click' ? 'Use the button or link text, or its accessible label. If the same label repeats in a table, identify the row below.' : step.type === 'type' || step.type === 'clear' ? 'Identify the field by its label or placeholder, rather than the text currently entered in it.' : step.type === 'select' ? 'Use the dropdown label and the option text a user sees.' : step.type === 'wait' ? 'Use the visible text or field label you expect to appear or disappear.' : 'Custom actions use Axtest syntax. Switch to Code for advanced targeting.'}</p>
+            {#if step.type === 'click'}
+              <details class="basis-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2" bind:open={() => rowScopes[step.id] ?? !!step.context, value => { rowScopes = { ...rowScopes, [step.id]: value } }}>
+                <summary class="cursor-pointer text-xs text-zinc-600 dark:text-zinc-400">Within a row <span class="text-zinc-400">{step.context ? `· ${step.context}` : 'Optional'}</span></summary>
+                <div class="pt-3 space-y-2">
+                  {@render field('Row containing text', step.context, 'For example, Buy milk', value => onUpdateStep('steps', step.id, { context: value }))}
+                  <p class="text-xs text-zinc-500">Choose text that identifies one table row. Axtest searches that row for the click target. Leave empty to search the whole page.</p>
+                  {#if step.context}<button type="button" class="text-xs font-medium text-zinc-500 underline" onclick={() => { onUpdateStep('steps', step.id, { context: '' }); rowScopes = { ...rowScopes, [step.id]: false } }}>Remove row restriction</button>{/if}
+                </div>
+              </details>
+            {/if}
           </div>
-        {/each}
+        {:else}<p class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-3 py-4 text-xs text-zinc-500">Start with an action, such as opening /tasks or clicking Add task.</p>{/each}
       </div>
       <button
         type="button"
@@ -316,17 +292,18 @@
         <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        Add step
+        Add action
       </button>
     </div>
 
     <!-- Assertions -->
     <div class="px-4 pt-2.5 pb-3 border-t border-zinc-100 dark:border-zinc-800">
-      <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Assert</p>
+      <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Expected results</p>
+      <p class="mb-3 text-xs text-zinc-500">How will you know it worked? Add at least one expected result. Targets are checked when the test runs.</p>
       <div class="space-y-1.5">
         {#each test.asserts as step, ai (step.id)}
           {@const parsed = parseAssertion(step.assertion)}
-          <div class="flex items-center gap-2 group border-l-2 {ASSERTION_META[parsed.type].border} pl-2.5 py-1 rounded-r-md bg-zinc-50/40 dark:bg-zinc-800/20">
+          <div class="flex flex-wrap items-center gap-2 group border-l-2 {ASSERTION_META[parsed.type].border} pl-2.5 py-1 rounded-r-md bg-zinc-50/40 dark:bg-zinc-800/20">
             <span class="text-xs font-mono text-zinc-300 dark:text-zinc-600 w-4 shrink-0">{ai + 1}</span>
 
             {#if parsed.type === 'custom'}
@@ -335,12 +312,7 @@
                 options={ASSERTION_TYPE_OPTIONS}
                 onchange={(v) => onAssertionTypeChange(step.id, v as AssertionType)}
               />
-              <input
-                value={parsed.value}
-                oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
-                placeholder="Fix or replace with a supported assertion type"
-                class="{inputCls} font-mono"
-              />
+              {@render field('Axtest assertion', parsed.value, 'Fix or replace with a supported assertion type', value => updateAssertion(step.id, { value }))}
               <span class="text-xs text-amber-600 dark:text-amber-400 shrink-0" title="This line is not a recognized assertion pattern">Unrecognized</span>
             {:else}
               <DropdownMenu label="Expected result type"
@@ -350,40 +322,15 @@
               />
 
               {#if parsed.type === 'modal_open'}
-                <span class="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">modal is open</span>
+                <span class="text-xs text-zinc-500">A dialog or modal should be open.</span>
               {:else if parsed.type === 'toast_shows'}
-                <span class="text-xs text-zinc-400 shrink-0">toast shows</span>
-                <input
-                  value={parsed.value}
-                  oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
-                  placeholder="Saved successfully"
-                  class={inputCls}
-                />
+                {@render field('Message text', parsed.value, 'Saved successfully', value => updateAssertion(step.id, { value }))}
               {:else if parsed.type === 'url_contains'}
-                <span class="text-xs text-zinc-400 shrink-0">url contains</span>
-                <input
-                  value={parsed.value}
-                  oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
-                  placeholder="/dashboard"
-                  class="{inputCls} font-mono"
-                />
+                {@render field('Expected URL part', parsed.value, '/dashboard', value => updateAssertion(step.id, { value }))}
               {:else if assertionNeedsTarget(parsed.type)}
-                <input
-                  value={parsed.target}
-                  oninput={(e) => updateAssertion(step.id, { target: (e.target as HTMLInputElement).value })}
-                  placeholder="Element or label"
-                  class={inputCls}
-                />
+                {@render field('Element or label', parsed.target, 'Element or label', target => updateAssertion(step.id, { target }))}
                 {#if parsed.type === 'contains'}
-                  <span class="text-xs text-zinc-400 shrink-0">contains</span>
-                  <input
-                    value={parsed.value}
-                    oninput={(e) => updateAssertion(step.id, { value: (e.target as HTMLInputElement).value })}
-                    placeholder="Expected text"
-                    class={inputCls}
-                  />
-                {:else}
-                  <span class="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{parsed.type.replace(/_/g, ' ')}</span>
+                  {@render field('Expected text', parsed.value, 'Expected text', value => updateAssertion(step.id, { value }))}
                 {/if}
               {/if}
             {/if}
@@ -391,15 +338,16 @@
             <button
               type="button"
               onclick={() => onDeleteStep('asserts', step.id)}
-              aria-label="Delete assertion"
-              class="size-6 shrink-0 rounded-md flex items-center justify-center text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Delete expected result"
+              class="size-6 shrink-0 rounded-md flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
             >
               <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+            <p class="basis-full text-xs text-zinc-500">{parsed.type === 'contains' ? 'Identify the element first, then the text it should contain. For example, Task list contains Buy milk.' : parsed.type === 'url_contains' ? 'Checks part of the browser address, such as /tasks. This is an expected result, not a navigation action.' : parsed.type === 'toast_shows' ? 'Checks the text of a notification or alert shown by your application.' : parsed.type === 'is_not_visible' ? 'Checks that this target is hidden or absent.' : parsed.type === 'is_enabled' || parsed.type === 'is_disabled' ? 'Identify the button or form control by its label.' : parsed.type === 'is_visible' ? 'Use text or a labelled element you expect to see, such as Buy milk or Task list.' : parsed.type === 'custom' ? 'This assertion needs attention. Choose a supported result type or edit it in Code.' : 'Checks that your application has an open dialog.'}</p>
           </div>
-        {/each}
+        {:else}<p class="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700 px-3 py-4 text-xs text-zinc-500">For example, check that Buy milk is visible after adding a task.</p>{/each}
       </div>
       <button
         type="button"
@@ -409,13 +357,29 @@
         <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        Add assertion
+        Add expected result
       </button>
     </div>
+    {#if !flow}
+      <details aria-label="Advanced test settings" class="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
+        <summary class="cursor-pointer text-xs font-medium text-zinc-600 dark:text-zinc-400">Advanced<span class="ml-2 font-normal text-zinc-400">{test.kind ? TEST_KIND_LABELS[test.kind] : 'Optional'}{test.dependsOn ? ' · Prerequisite set' : ''}</span></summary>
+        <div class="pt-4 space-y-4">
+          <div class="space-y-2"><p class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Test type</p><DropdownMenu label="Test kind" value={test.kind} options={TEST_KIND_OPTIONS} class="w-full" onchange={value => onUpdate({ kind: value as TestKind })} /><p class="text-xs text-zinc-500">Classification is optional. Use Seed when you want to generate variations from this behaviour.</p></div>
+          <div class="space-y-2"><p class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Run after another test</p><DropdownMenu label="Test prerequisite" value={allTests.find(item => item.id === test.dependsOn)?.name ?? test.dependsOn} options={dependsOpts} class="w-full" onchange={value => onUpdate({ dependsOn: value })} /><p class="text-xs text-zinc-500">The prerequisite is included automatically when this test runs.</p></div>
+          {#if test.generatedFrom}<p class="text-xs text-zinc-500">Generated from “{test.generatedFrom}”</p>{/if}
+          <div class="border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-2">
+            <p class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Generate test variations</p>
+            <p class="text-xs text-zinc-500">{test.kind !== 'seed' ? 'Choose Seed as the test type, then run this behaviour successfully to use it as a starting point.' : runStatus !== 'passed' ? 'Run this seed successfully before generating variations.' : !canGenerate ? 'No new variations are available. Add an input action or validation rule, or review the variations already generated.' : 'Ready to generate positive, negative and edge cases. Review their actions and expected results before running them.'}</p>
+            <p class="text-xs text-zinc-500">Validation rules in Suite settings help describe the expected response to invalid inputs.</p>
+            {#if onGenerate}<button type="button" disabled={!canGenerate || running || generating} onclick={onGenerate} class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 disabled:opacity-50">{#if generating}<Spinner size="sm" />{/if}{generating ? 'Generating…' : 'Generate variations'}</button>{/if}
+          </div>
+        </div>
+      </details>
+    {/if}
   {:else}
     <div class="px-4 py-2 text-xs text-zinc-400">
       {#if test.kind}<span class="font-medium {TEST_KIND_STYLES[test.kind]} px-1 py-0.5 rounded mr-1">{TEST_KIND_LABELS[test.kind]}</span>{/if}
-      {test.steps.length} steps · {test.asserts.length} asserts
+      {test.steps.length} actions · {test.asserts.length} expected results
       {#if test.dependsOn} · depends on "{test.dependsOn}"{/if}
     </div>
   {/if}
