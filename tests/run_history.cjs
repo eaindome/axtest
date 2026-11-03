@@ -29,6 +29,27 @@ const { chromium } = createRequire(process.cwd() + '/packages/core/package.json'
     const table = page.getByRole('table', { name: 'Past runs' })
     const nav = page.getByRole('navigation', { name: 'Run pagination' })
     await nav.getByText('1–10 of 23 runs', { exact: true }).waitFor()
+    await page.evaluate(() => {
+      window.breadcrumbChanges = []
+      window.breadcrumbObserver = new MutationObserver(() => {
+        const breadcrumb = document.querySelector('[aria-label="Project breadcrumb"]')
+        if (breadcrumb) window.breadcrumbChanges.push(breadcrumb.textContent)
+      })
+      window.breadcrumbObserver.observe(document.querySelector('main'), { childList: true, subtree: true, characterData: true })
+    })
+    for (const tab of ['Configuration', 'Test suites', 'Run history']) {
+      await page.getByRole('navigation', { name: 'Project navigation', exact: true }).getByRole('link', { name: tab, exact: true }).click()
+      if (tab === 'Configuration') await page.getByRole('heading', { name: 'Configuration', exact: true }).waitFor()
+      if (tab === 'Test suites') await page.getByRole('region', { name: 'Suite selection', exact: true }).waitFor()
+      if (tab === 'Run history') await nav.waitFor()
+    }
+    const breadcrumbs = await page.evaluate(() => { window.breadcrumbObserver.disconnect(); return window.breadcrumbChanges })
+    assert(breadcrumbs.length > 0 && breadcrumbs.every(text => text.includes('Students Portal')), 'Project identity stays constant while tabs load.')
+    const toggle = page.getByRole('button', { name: 'Collapse sidebar', exact: true })
+    const currentUrl = page.url()
+    await toggle.click()
+    await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
+    assert.equal(page.url(), currentUrl, 'Sidebar toggle changes the panel without navigating.')
     assert.equal(await table.locator('tbody tr').count(), 10)
     assert.match(await table.locator('tbody tr').first().innerText(), /journey-23/)
     await nav.getByRole('button', { name: 'Next', exact: true }).click()
