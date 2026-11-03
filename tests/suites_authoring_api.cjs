@@ -57,6 +57,7 @@ const API = 'http://localhost:5000', WEB = 'http://localhost:5173'
     await page.getByRole('button', { name: 'Edit test Create a task', exact: true }).click()
     await page.getByText('This suite uses advanced syntax. Code preserves its grouped steps and assertions.', { exact: true }).waitFor()
     assert.equal(await page.getByRole('tab', { name: 'Code', exact: true }).getAttribute('aria-selected'), 'true')
+    await page.getByRole('region', { name: 'Suite editor context', exact: true }).locator('summary').first().click()
     assert.match(await page.getByRole('button', { name: 'Test account', exact: true }).innerText(), /Saved todo account/)
     // Simulate another editor saving while this one has an older revision.
     const newer = await call('PUT', `/api/projects/${project.id}/files/${file.id}`, { content: file.content + '\n# another edit\n', expectedUpdatedAt: file.updatedAt })

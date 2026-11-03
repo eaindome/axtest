@@ -67,6 +67,7 @@ function visibleWindows() {
     await settings.getByRole('button', { name: 'Close run settings', exact: true }).click()
     await page.getByRole('button', { name: 'Edit test Paced clicks', exact: true }).click()
     await page.getByRole('region', { name: 'Suite editor context', exact: true }).waitFor()
+    await page.getByRole('region', { name: 'Suite editor context', exact: true }).locator('summary').first().click()
     await page.getByRole('button', { name: 'Run settings', exact: true }).first().click()
     assert(await settings.getByRole('checkbox', { name: 'Show browser', exact: true }).isChecked())
     assert.match(await settings.getByRole('button', { name: 'Execution speed', exact: true }).innerText(), /Fast/)
