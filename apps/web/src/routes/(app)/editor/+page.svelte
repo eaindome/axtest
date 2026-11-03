@@ -24,6 +24,7 @@
   import { resolveEffectiveUrl, needsEnvironmentSetup, isOverridableEnv } from '$lib/editor/resolve-env-url'
 
   import EditorToolbar from '$lib/components/editor/EditorToolbar.svelte'
+  import RunSettings from '$lib/components/editor/RunSettings.svelte'
   import RunInputsPanel from '$lib/components/editor/RunInputsPanel.svelte'
   import { runInputNames } from '$lib/editor/run-inputs'
   import EnvironmentSetupModal from '$lib/components/editor/EnvironmentSetupModal.svelte'
@@ -42,7 +43,7 @@
 
   let runController: AbortController | undefined
   let inputNames = $state<string[]>([])
-  let runSetupOpen = $state(false)
+  let runSetupOpen = $state(false), runSetupExpanded = $state(false)
   type RunSetup = { variables: Record<string, string>; headed: boolean; slowMoMs: number }
   let resolveInputs: ((values: RunSetup | null) => void) | null = null
   function finishInputs(values: Record<string, string> | null) {
@@ -739,32 +740,25 @@
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
-    {runSettings}
-    onRunSettings={value => { runSettings = value; persistContext() }}
+    suiteTitle={draftSuite ? draftName.trim() || 'New suite draft' : undefined}
   />
 
   {#if activeProject}
-    <section class="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-5 py-3 space-y-3" aria-label="Suite editor context">
-      <div class="flex flex-wrap items-center gap-3">
-        <a class="text-xs font-medium text-amber-700 dark:text-amber-400" href={`/projects/${activeProject.id}/suites`}>Back to suites</a>
-        <span class="text-xs text-zinc-500" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes · saved before running' : 'All changes saved'}</span>
-        <div class="flex-1"></div>
-        <nav aria-label="Editor panels" class="flex flex-wrap items-center gap-1">
-          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={explorerOpen} aria-controls="editor-explorer" onclick={() => { explorerOpen = !explorerOpen }}>Explorer</button>
-          {#if !inLessonMode}<button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={outlineOpen} aria-controls="editor-outline" onclick={() => { outlineOpen = !outlineOpen }}>Outline</button>{/if}
-          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800 disabled:opacity-40" aria-pressed={resultsOpen} disabled={!runResult && !running} onclick={() => { resultsOpen = !resultsOpen }}>Results</button>
-        </nav>
-      </div>
-      <div class="flex flex-wrap items-center gap-3" aria-label="Run context">
+    <section class="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 max-h-[40vh] overflow-y-auto" aria-label="Suite editor context">
+      <details bind:open={runSetupExpanded}>
+        <summary class="cursor-pointer px-5 py-2.5 text-xs text-zinc-600 dark:text-zinc-400"><span class="font-medium text-zinc-800 dark:text-zinc-200">Run setup</span><span class="ml-3 capitalize">{environment}</span> · {account?.name ?? 'No saved account'} · {runSettings.headed && !$useMock ? 'Visible browser' : 'Headless'}{#if $useMock} · Mock mode{/if}</summary>
+        <div class="flex flex-wrap items-center gap-3 px-5 pb-4" aria-label="Run context">
         <DropdownMenu label="Environment" value={environment} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} disabled={running || saving} onchange={handleEnvironmentChange} />
         <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
         <p class="min-w-0 basis-full xl:basis-0 xl:flex-1 text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>
         <button type="button" disabled={running || saving} onclick={openEditEnvironmentModal} class="text-xs text-zinc-500">{environmentNeedsSetup ? 'Set URL' : 'Edit URL'}</button>
         <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
-      </div>
-      {#if draftSuite}<div class="max-w-lg space-y-1"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
-      {#if runReadiness.length}<div class="text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
-      {#if !visualSafe && activeFile}<p class="text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
+        <RunSettings value={runSettings} disabled={running || saving} onchange={value => { runSettings = value; persistContext() }} />
+        </div>
+      </details>
+      {#if draftSuite}<div class="max-w-lg space-y-1 px-5 pb-4"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
+      {#if runReadiness.length}<div class="px-5 pb-3 text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
+      {#if !visualSafe && activeFile}<p class="px-5 pb-3 text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
     </section>
   {/if}
 
@@ -780,6 +774,13 @@
     onDelete={envModalMode === 'edit' && envModalEnvironment !== 'production' ? deleteEnvironmentOverride : undefined}
     onCancel={closeEnvModal}
   />
+
+  <div class="shrink-0 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-1">
+        <nav aria-label="Editor panels" class="flex flex-wrap items-center gap-1">
+          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={explorerOpen} aria-controls="editor-explorer" onclick={() => { explorerOpen = !explorerOpen }}>Explorer</button>
+          {#if !inLessonMode}<button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={outlineOpen} aria-controls="editor-outline" onclick={() => { outlineOpen = !outlineOpen }}>Outline</button>{/if}
+        </nav>
+  </div>
 
   <div class="flex flex-1 overflow-hidden min-h-0">
 
@@ -836,6 +837,7 @@
 
       {:else if visualParsed}
         <VisualBuilder
+          draft={draftSuite}
           parsed={visualParsed}
           authOptions={[{ value: '', label: 'No login step' }, ...files.filter(file => file.path.startsWith('auth/') && !/^\s*TEST\s+/m.test(file.content)).map(file => ({ value: file.path.slice(5).replace(/\.axtest$/, ''), label: file.name.replace(/\.axtest$/, '') }))]}
           {selectedTestId}
@@ -863,6 +865,9 @@
         onResizeStart={() => { resizeResultsStart = resultsHeight }}
         onResize={(delta) => { resultsHeight = clamp(resizeResultsStart + delta, 120, 480) }}
       />
+      <div class="shrink-0 border-t border-zinc-100 dark:border-zinc-800 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-900">
+        <button class="rounded px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 disabled:opacity-40" aria-pressed={resultsOpen} disabled={!runResult && !running} onclick={() => { resultsOpen = !resultsOpen }}>Results{#if running} · Running…{:else if runResult} · {runResult.passedTests}/{runResult.totalTests} passed{/if}</button>
+      </div>
     </div>
 
     {#if inLessonMode && lessonReady && lessonId && sandboxProjectId}
