@@ -8,7 +8,7 @@
   import { currentWorkspace } from '$lib/stores/workspace'
   import { authStore } from '$lib/stores/auth'
   import { useMock } from '$lib/stores/dev'
-  import { pageTitle, pageSubtitle, pageAction } from '$lib/stores/ui'
+  import { pageTitle, pageSubtitle, pageAction, workspaceBottomInset } from '$lib/stores/ui'
   import { discoverSuites, selectedInputNames, selectedExecution, suiteLabel, normalizedUrl, testSources, canUseVisualEditor } from '$lib/suites'
   import { resolveEffectiveUrl } from '$lib/editor/resolve-env-url'
   import Button from '$lib/components/ui/Button.svelte'
@@ -165,6 +165,12 @@
   function statusClass(status?: string) { return status === 'passed' ? 'text-emerald-700 dark:text-emerald-400' : status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-zinc-500' }
 
   function mixed(node: HTMLInputElement, value: boolean) { node.indeterminate = value; return { update(next: boolean) { node.indeterminate = next } } }
+  function measureSelectionBar(node: HTMLElement) {
+    const measure = () => workspaceBottomInset.set(node.getBoundingClientRect().height)
+    const observer = new ResizeObserver(measure)
+    observer.observe(node); measure()
+    return { destroy() { observer.disconnect(); workspaceBottomInset.set(0) } }
+  }
   function openEditor(file?: TestFile, test?: string, add = false) {
     if (!project) return
     persist()
@@ -210,7 +216,8 @@
   }
 </script>
 
-<div bind:this={viewport} class="flex-1 overflow-auto bg-zinc-50/80 dark:bg-zinc-950"><div class="page-shell space-y-6">
+<div class="flex flex-1 min-h-0 flex-col bg-zinc-50/80 dark:bg-zinc-950">
+<div bind:this={viewport} class="flex-1 min-h-0 overflow-auto"><div class="page-shell space-y-6">
   <ProjectNavigation projectId={Number($page.params.id)} name={project?.name} active="suites" />
   <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="eyebrow mb-2">Behaviour testing</p><h1 class="page-heading">Test suites</h1><p class="page-description">Organise user journeys, choose what to test, and see what needs attention.</p></div>{#if project}<div class="flex gap-2"><Button variant="secondary" onclick={() => openEditor(active)}>Open editor</Button><Button disabled={busy || loading || !!project.archivedAt} onclick={() => openEditor()}>New suite</Button></div>{/if}</div>
   {#if project?.archivedAt}<p class="error-banner">This project is archived. Restore it from Projects to create tests or start new runs.</p>{/if}
@@ -218,10 +225,9 @@
   {#if loading}<p class="surface p-8 text-sm text-zinc-500" role="status">Loading test suites…</p>
   {:else if project}
     <section class="surface p-4 space-y-4" aria-label="Execution controls">
-      <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end">
+      <div class="grid gap-4 sm:grid-cols-2 items-end">
         <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Environment</span><DropdownMenu class="w-full" label="Environment" value={environment} disabled={busy} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} onchange={changeEnvironment} /></div>
         <div class="space-y-2"><span class="text-xs font-medium text-zinc-500">Test account</span><DropdownMenu class="w-full" label="Test account" value={accountId} disabled={busy} options={[{ value: '', label: required.some(name => /USERNAME|PASSWORD|TOKEN|SECRET|KEY/.test(name)) ? 'Choose a saved account' : 'No account required' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} onchange={value => { accountId = value; persist() }} /></div>
-        <div class="flex flex-wrap gap-2"><RunSettings value={runSettings} disabled={busy} onchange={value => { runSettings = value; persist() }} /><Button onclick={() => launch()} disabled={!count || busy || !!project.archivedAt || !!readiness.length} loading={submitting}>Run selected</Button></div>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200">{count} selected{#if execution.included.length} · {execution.included.length} prerequisites included{/if} · {execution.count} will run</p><p class="text-xs text-zinc-500 break-all mt-1">{targetUrl || 'No address configured'}{#if environment === 'production'} · Production target{/if}{#if $useMock} · Simulated results in mock mode{/if}</p></div><div class="flex gap-3 text-xs font-medium">{#if runInputNames.length}<button disabled={busy} class="text-amber-700 dark:text-amber-400" onclick={() => { inputsOpen = true }}>Run inputs</button>{/if}<button disabled={busy} class="text-zinc-500" onclick={openSetup}>Configuration</button></div></div>
       {#if !count}<p class="text-xs text-zinc-500">Open a suite to inspect it. Use checkboxes to include tests in a run.</p>{:else if readiness.length}<div class="rounded-lg border border-amber-200 dark:border-amber-900 p-3 space-y-2" role="status"><p class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Before this selection can run</p><ul class="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">{#each readiness as reason}<li>{reason}</li>{/each}</ul><div class="flex flex-wrap gap-3 text-xs font-medium">{#if !configured || missingCredentials.length}<a class="text-amber-700 dark:text-amber-400" onclick={persist} href={`/projects/${project.id}?needs=${!configured ? 'environment' : 'account'}&inputs=${encodeURIComponent(missingCredentials.join(', '))}`}>Configure access</a>{/if}{#if missingData.length}<button class="text-amber-700 dark:text-amber-400" onclick={() => { inputsOpen = true }}>Provide run inputs</button>{/if}</div></div>{:else}<p class="text-xs text-emerald-700 dark:text-emerald-400">Ready to run this selection.</p>{/if}
@@ -271,6 +277,23 @@
     {/if}
   {:else}<section class="surface p-8"><p class="text-sm text-zinc-500">Open Projects to choose an application.</p><a class="action-link mt-4" href="/projects">Open projects</a></section>{/if}
 </div></div>
+{#if !loading && project && count}
+  <section use:measureSelectionBar aria-label="Selected tests" class="shrink-0 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
+    <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-zinc-800 dark:text-zinc-200" role="status">{count} test{count === 1 ? '' : 's'} selected{#if execution.included.length} · {execution.included.length} prerequisites included{/if}</p>
+        <p class="mt-1 text-xs text-zinc-500">Across all pages · {environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Local'}{#if busy} · Running…{:else if readiness.length} · Setup needs attention{/if}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button class="px-2 py-2 text-xs font-medium text-zinc-500 disabled:opacity-50" disabled={busy} onclick={() => { selection = {}; persist() }}>Clear selection</button>
+        {#if readiness.length}<button class="px-2 py-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={() => { viewport?.scrollTo({ top: 0, behavior: 'smooth' }) }}>Review setup</button>{/if}
+        <RunSettings value={runSettings} disabled={busy} onchange={value => { runSettings = value; persist() }} />
+        <Button onclick={() => launch()} disabled={busy || !!project.archivedAt || !!readiness.length} loading={submitting}>Run selected</Button>
+      </div>
+    </div>
+  </section>
+{/if}
+</div>
 
 <SlidePanel open={inputsOpen} title="Run inputs" onclose={() => { inputsOpen = false }}>
   <form class="p-5 space-y-4" onsubmit={event => { event.preventDefault(); inputsOpen = false }}><p class="text-sm text-zinc-500">Values apply to this browser session and are cleared on refresh. Saved account credentials are managed in Configuration.</p>{#each runInputNames as name}<Input label={name.replace(/^AXTEST_/, '').replaceAll('_', ' ')} bind:value={() => runValues[name] ?? '', value => { runValues[name] = value }} required />{/each}<Button type="submit">Use these inputs</Button></form>
