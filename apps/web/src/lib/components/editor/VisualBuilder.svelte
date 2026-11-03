@@ -12,6 +12,7 @@
   type VisualPanel = 'setup' | 'tests'
 
   interface Props {
+    draft?: boolean
     authOptions?: { value: string; label: string }[]
     parsed: ParsedFile
     selectedTestId: string | null
@@ -29,6 +30,7 @@
   }
 
   let {
+    draft = false,
     parsed,
     authOptions,
     selectedTestId,
@@ -134,9 +136,8 @@
   )
 
   const hasKindTags = $derived(parsed.tests.some(t => t.kind !== ''))
-  const seedCount = $derived(parsed.tests.filter(t => t.kind === 'seed').length)
   const panelOptions = $derived([
-    { value: 'setup' as const, label: 'File setup' },
+    { value: 'setup' as const, label: 'Suite settings' },
     {
       value: 'tests' as const,
       label: parsed.flow ? 'Flow steps' : 'Test cases',
@@ -177,6 +178,7 @@
     <div class="max-w-2xl mx-auto">
       {#if panel === 'setup'}
         <FileSetupPanel
+          {draft}
           {parsed}
           {authOptions}
           onMetaChange={updateMeta}
@@ -188,7 +190,7 @@
             <div class="text-center py-16">
               <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-1">No test cases yet</p>
               <p class="text-xs text-zinc-400 mb-4">Add a behaviour, its actions and an expected result.</p>
-              <button type="button" onclick={() => (panel = 'setup')} class="text-xs text-amber-600 hover:text-amber-700 mr-3">File setup</button>
+              <button type="button" onclick={() => (panel = 'setup')} class="text-xs text-amber-600 hover:text-amber-700 mr-3">Suite settings</button>
               <button type="button" onclick={addTest} class="text-xs font-medium text-amber-600 hover:text-amber-700">+ Add test</button>
             </div>
           {:else if visibleTests.length === 0}
@@ -199,10 +201,6 @@
           {:else}
             {#if parsed.flow}
               <p class="text-sm text-zinc-500">{parsed.flow === 'auth' ? 'Authentication flow' : 'Reusable module flow'}. Its steps run when another spec references this flow.</p>
-            {:else if seedCount === 0}
-              <p class="text-xs text-zinc-400 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/30 rounded-lg px-3 py-2">
-                Tip: mark one test as <span class="font-medium text-violet-600 dark:text-violet-400">Seed</span>, run it, then generate variants.
-              </p>
             {/if}
             {#each visibleTests as { test, index: ti } (test.id)}
               <TestBlockCard
@@ -240,7 +238,7 @@
               <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
-              Add test block
+              Add behaviour
             </button>
           {/if}
         </div>
