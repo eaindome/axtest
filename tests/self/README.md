@@ -31,7 +31,7 @@ Each test gets a fresh browser context. A test's logout does not sign out your i
 
 The environment selector chooses the runner's URL. Configure Production, Staging and Local in the project's **Configuration** tab. For testing axtest on this machine, use `http://localhost:5173`.
 
-Open **Run settings** beside Run in either Suites or the editor. With **Show browser** off, Chromium runs headlessly. Enable it to watch execution, then choose Fast, Standard or Slow pacing before running. These preferences are shared between both views. It opens on the API computer, not as a live stream inside the editor, and closes when the run finishes.
+Open **Run settings** in the Suites selection bar, or expand **Run setup** in the editor to find it. With **Show browser** off, Chromium runs headlessly. Enable it to watch execution, then choose Fast, Standard or Slow pacing before running. These preferences are shared between both views. It opens on the API computer, not as a live stream inside the editor, and closes when the run finishes.
 
 ## Manual checks
 
