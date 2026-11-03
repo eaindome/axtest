@@ -56,7 +56,7 @@
           <span class="text-sm text-zinc-400">{runResult?.status === 'pending' ? 'Queued for execution…' : 'Running tests…'}</span>
         </div>
       {:else if runResult}
-        {#if runResult.status === 'pending' || runResult.status === 'running'}<p class="text-sm text-zinc-500 p-4">This run is still {runResult.status}. {#if projectId}<a class="text-amber-700 dark:text-amber-400 underline" href="/projects/{projectId}">Follow it in run history</a>{/if}</p>{/if}
+        {#if runResult.status === 'pending' || runResult.status === 'running'}<p class="text-sm text-zinc-500 p-4">This run is still {runResult.status}. {#if projectId}<a class="text-amber-700 dark:text-amber-400 underline" href="/projects/{projectId}/history">Follow it in run history</a>{/if}</p>{/if}
         {#each runResult.results as r (`${runResult.id}:${r.id}`)}
           <div class="flex items-start gap-3 px-3 py-2.5 border-b border-zinc-50 dark:border-zinc-900 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/60 transition-colors">
             {#if r.status === 'passed'}
