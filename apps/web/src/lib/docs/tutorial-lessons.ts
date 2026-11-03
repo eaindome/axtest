@@ -148,7 +148,7 @@ const LESSON_CHECKLISTS: Record<string, string[]> = {
     'Use Is visible and URL contains asserts',
   ],
   'tutorial-6-visual': [
-    'Switch between File setup and Test cases tabs',
+    'Switch between Suite settings and Test cases tabs',
     'Edit a step using verb dropdowns',
     'Use outline filters (Seed / Negative / Edge)',
   ],

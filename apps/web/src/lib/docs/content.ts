@@ -99,7 +99,7 @@ Create \`modules/todos/add-task.axtest\` and define **what** we are testing befo
 1. Open **Test Editor** / select project **TaskFlow Todo** (or your sandbox project)
 2. In the file explorer, right-click \`modules/todos/\` / **New file** / \`add-task.axtest\`
 3. Switch to **Code** view and paste the skeleton below
-4. Switch to **Visual** / **File setup** to confirm title and URL
+4. Switch to **Visual** / **Suite settings** to confirm title and URL
 
 ## File skeleton
 
@@ -192,7 +192,7 @@ Rules are **structured constraints** — not free-text notes. They describe what
 
 ## Rules for add-task
 
-In **File setup / Rules** (or the \`RULES\` block in code):
+In **Suite settings / Rules** (or the \`RULES\` block in code):
 
 \`\`\`text
 RULES
@@ -312,15 +312,15 @@ Use **Is visible** plus **URL contains** together when filters change the query 
     groupId: 'tutorial',
     step: 6,
     title: 'Visual editor walkthrough',
-    summary: 'File setup vs Test cases — editing TaskFlow without syntax stress.',
+    summary: 'Suite settings vs Test cases — editing TaskFlow without syntax stress.',
     content: `## Two panels, one file
 
 | Tab | TaskFlow work |
 |-----|----------------|
-| **File setup** | Title, base URL, auth, rules for add-task |
+| **Suite settings** | Title, base URL, auth, rules for add-task |
 | **Test cases** | Seed + generated tests, steps, asserts |
 
-## File setup checklist (add-task)
+## Suite settings checklist (add-task)
 
 - [ ] Title: \`Add task\`
 - [ ] Base URL: production URL (overridden per environment at run time)
@@ -593,7 +593,7 @@ TEST "Add a new task — seed"
 
 | I want to… | Go to… |
 |------------|--------|
-| Edit rules | Visual / File setup |
+| Edit rules | Visual / Suite settings |
 | Edit steps | Visual / Test cases / expand card |
 | See all tests | Outline panel (right) |
 | Change URL | Toolbar env + URL chip |
