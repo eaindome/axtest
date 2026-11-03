@@ -89,6 +89,7 @@
   let resultsHeight  = $state(savedPanels.results)
   let explorerWidth  = $state(savedPanels.explorer)
   let outlineWidth   = $state(savedPanels.outline)
+  let explorerOpen = $state(savedPanels.explorerOpen), outlineOpen = $state(savedPanels.outlineOpen)
   let mode           = $state<'code' | 'visual'>('code')
   let environment    = $state<EnvironmentName>('production')
   let projectEnvironments = $state<ProjectEnvironment[]>([])
@@ -172,7 +173,7 @@
   })
 
   $effect(() => {
-    savePanelSizes({ explorer: explorerWidth, outline: outlineWidth, results: resultsHeight })
+    savePanelSizes({ explorer: explorerWidth, outline: outlineWidth, results: resultsHeight, explorerOpen, outlineOpen })
   })
 
   $effect(() => {
@@ -725,41 +726,42 @@
 
   <EditorToolbar
     {activeProject}
-    {projects}
     {activeFile}
     {dirty}
     {saving}
     {running}
     {mode}
-    {environment}
-    {effectiveUrl}
-    {environmentNeedsSetup}
     validationErrors={validation.errors}
     validationWarnings={validation.warnings}
     onJumpToError={() => jumpToValidationIssue('error')}
     onJumpToWarning={() => jumpToValidationIssue('warning')}
-    onSelectProject={selectProject}
     onSwitchCode={switchToCode}
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
     {runSettings}
     onRunSettings={value => { runSettings = value; persistContext() }}
-    onEnvironmentChange={handleEnvironmentChange}
-    onEditEnvironment={openEditEnvironmentModal}
   />
 
-  {#if activeProject && !inLessonMode}
+  {#if activeProject}
     <section class="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-5 py-3 space-y-3" aria-label="Suite editor context">
       <div class="flex flex-wrap items-center gap-3">
         <a class="text-xs font-medium text-amber-700 dark:text-amber-400" href={`/projects/${activeProject.id}/suites`}>Back to suites</a>
-        <span class="text-xs text-zinc-500">{activeFile ? draftSuite ? 'New suite draft' : suiteLabel(activeFile) : 'Choose a suite'}</span>
         <span class="text-xs text-zinc-500" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes · saved before running' : 'All changes saved'}</span>
         <div class="flex-1"></div>
+        <nav aria-label="Editor panels" class="flex flex-wrap items-center gap-1">
+          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={explorerOpen} aria-controls="editor-explorer" onclick={() => { explorerOpen = !explorerOpen }}>Explorer</button>
+          {#if !inLessonMode}<button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={outlineOpen} aria-controls="editor-outline" onclick={() => { outlineOpen = !outlineOpen }}>Outline</button>{/if}
+          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800 disabled:opacity-40" aria-pressed={resultsOpen} disabled={!runResult && !running} onclick={() => { resultsOpen = !resultsOpen }}>Results</button>
+        </nav>
+      </div>
+      <div class="flex flex-wrap items-center gap-3" aria-label="Run context">
+        <DropdownMenu label="Environment" value={environment} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} disabled={running || saving} onchange={handleEnvironmentChange} />
         <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
+        <p class="min-w-0 basis-full xl:basis-0 xl:flex-1 text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>
+        <button type="button" disabled={running || saving} onclick={openEditEnvironmentModal} class="text-xs text-zinc-500">{environmentNeedsSetup ? 'Set URL' : 'Edit URL'}</button>
         <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
       </div>
-      <p class="text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>
       {#if draftSuite}<div class="max-w-lg space-y-1"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
       {#if runReadiness.length}<div class="text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
       {#if !visualSafe && activeFile}<p class="text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
@@ -781,6 +783,8 @@
 
   <div class="flex flex-1 overflow-hidden min-h-0">
 
+    {#if explorerOpen}
+    <div id="editor-explorer" class="flex shrink-0 min-h-0" role="region" aria-label="File explorer">
     <FileTree
       {files}
       folders={explorerFolders}
@@ -805,9 +809,11 @@
       onResizeStart={() => { resizeExplorerStart = explorerWidth }}
       onResize={(delta) => { explorerWidth = clamp(resizeExplorerStart + delta, 160, 400) }}
     />
+    </div>
+    {/if}
 
     <!-- Center: editor canvas + results -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden" role="region" aria-label="Test canvas">
 
       {#if !activeFile}
         <div class="flex-1 flex items-center justify-center text-center p-8">
@@ -853,7 +859,7 @@
         height={resultsHeight}
         {running}
         {runResult}
-        onClose={() => { resultsOpen = false; runResult = null }}
+        onClose={() => { resultsOpen = false }}
         onResizeStart={() => { resizeResultsStart = resultsHeight }}
         onResize={(delta) => { resultsHeight = clamp(resizeResultsStart + delta, 120, 480) }}
       />
@@ -867,7 +873,8 @@
         resetting={lessonResetting}
         onReset={resetLessonFile}
       />
-    {:else}
+    {:else if outlineOpen}
+      <div id="editor-outline" class="flex shrink-0 min-h-0" role="region" aria-label="Test outline">
       <ResizeHandle
         direction="horizontal"
         side="right"
@@ -885,6 +892,7 @@
         width={outlineWidth}
         onSelectTest={selectTest}
       />
+      </div>
     {/if}
   </div>
   {/if}
