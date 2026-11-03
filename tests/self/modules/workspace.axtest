@@ -20,7 +20,7 @@ TEST "Create a project and save its first suite"
   click "Create your first test"
   wait for "Suite name" to appear
   type "Self test suite {{AXTEST_CASE}}" in "Suite name"
-  type "First behaviour" in "Test name"
+  type "First behaviour" in "Behaviour name"
   type "Projects" in "Element or label"
   click "Save"
   wait for "All changes saved" to appear
