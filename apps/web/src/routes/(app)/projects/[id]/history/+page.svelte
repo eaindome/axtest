@@ -108,7 +108,7 @@
     <ProjectNavigation {projectId} name={project?.name} active="history" />
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div><p class="eyebrow mb-2">Execution records</p><h1 class="page-heading">Run history</h1><p class="page-description">Find past runs, investigate failures, and review the evidence.</p></div>
-      <div class="flex gap-2"><Button variant="secondary" disabled={loading || refreshing} onclick={() => $currentWorkspace && load($currentWorkspace.id, projectId, true)}>Refresh</Button><a class="action-link primary" href={`/projects/${projectId}/suites`}>Open test suites</a></div>
+      <div class="flex gap-2"><Button variant="secondary" class="min-w-36" loading={refreshing} disabled={loading} onclick={() => $currentWorkspace && load($currentWorkspace.id, projectId, true)}>{refreshing ? 'Refreshing…' : 'Refresh'}</Button><a class="action-link primary" href={`/projects/${projectId}/suites`}>Open test suites</a></div>
     </div>
     {#if error}<div class="error-banner" role="alert">{error}<button class="ml-3 underline" onclick={() => $currentWorkspace && load($currentWorkspace.id, projectId, true)}>Try again</button></div>{/if}
     {#if loading}<div class="surface p-10 flex items-center gap-3 text-sm text-zinc-500" role="status"><Spinner />Loading run history…</div>
