@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { toasts, dismissToast, type Toast } from '$lib/stores/toasts'
+  import { workspaceBottomInset } from '$lib/stores/ui'
   let timers = new Map<number, ReturnType<typeof setTimeout>>()
   const paused = new Set<number>()
   function pause(id: number) { clearTimeout(timers.get(id)); timers.delete(id); paused.add(id) }
@@ -14,7 +15,7 @@
   })
 </script>
 
-<div class="fixed bottom-16 right-4 z-[100] flex w-[min(25rem,calc(100vw-2rem))] flex-col gap-3 pointer-events-none" aria-label="Notifications">
+<div style:bottom={`${$workspaceBottomInset + 64}px`} class="fixed right-4 z-[100] flex w-[min(25rem,calc(100vw-2rem))] flex-col gap-3 pointer-events-none" aria-label="Notifications">
   {#each $toasts as item (item.id)}
     <div role={item.kind === 'error' ? 'alert' : 'status'} class="pointer-events-auto flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" onmouseenter={() => pause(item.id)} onmouseleave={() => resume(item)} onfocusin={() => pause(item.id)} onfocusout={() => resume(item)}>
       <span class={item.kind === 'error' ? 'text-red-600 font-semibold' : 'text-emerald-700 font-semibold'}>{item.kind === 'error' ? 'Error' : 'Done'}</span>

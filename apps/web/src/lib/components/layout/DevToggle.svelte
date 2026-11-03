@@ -1,10 +1,11 @@
 <script lang="ts">
   import { useMock, switchDataMode } from '$lib/stores/dev'
   import { dev } from '$app/environment'
+  import { workspaceBottomInset } from '$lib/stores/ui'
 </script>
 
 {#if dev}
-  <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-full shadow-md px-3.5 py-2">
+  <div style:bottom={`${$workspaceBottomInset + 16}px`} class="fixed right-4 z-50 flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-full shadow-md px-3.5 py-2">
     <span class="text-xs text-zinc-400 font-medium">Data</span>
 
     <button
