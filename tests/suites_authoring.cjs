@@ -60,7 +60,7 @@ const source = (title, second = false) => `---\ntitle: ${title}\n---\n# axtest:s
     await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
     assert.equal(await page.getByLabel('Search suites', { exact: true }).inputValue(), 'Complete')
     assert(await page.getByLabel('Complete a task', { exact: true }).isChecked())
-    await page.getByRole('button', { name: 'Run selected', exact: true }).click()
+    await page.getByRole('region', { name: 'Selected tests', exact: true }).getByRole('button', { name: 'Run selected', exact: true }).click()
     await page.getByRole('region', { name: 'Suite results' }).getByRole('status').filter({ hasText: '2/2 passed' }).waitFor()
     await page.getByRole('button', { name: 'Add test', exact: true }).click()
     await page.getByRole('region', { name: 'Suite editor context' }).waitFor()
