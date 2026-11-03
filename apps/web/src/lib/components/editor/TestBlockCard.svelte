@@ -116,7 +116,7 @@
 </script>
 
 {#snippet field(label: string, value: string, placeholder: string, onchange: (value: string) => void)}
-  <label class="min-w-[9rem] flex-1 space-y-1">
+  <label class="block min-w-[9rem] flex-1 space-y-1">
     <span class="block text-xs text-zinc-500">{label}</span>
     <input {value} {placeholder} oninput={event => onchange(event.currentTarget.value)} class={`w-full ${inputCls}`} />
   </label>
