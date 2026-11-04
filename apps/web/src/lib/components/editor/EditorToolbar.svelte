@@ -2,10 +2,9 @@
   import { suiteLabel } from '$lib/suites'
   import Button from '$lib/components/ui/Button.svelte'
   import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
-  import { darkMode } from '$lib/stores/theme'
   import type { Project, TestFile } from '$lib/api'
-  let { activeProject, activeFile, suiteTitle, dirty, saving, running, mode, setupSummary, setupOpen, onSetup, onSettings, settingsDisabled = false, validationErrors = 0, validationWarnings = 0, onJumpToError, onJumpToWarning, onSwitchCode, onSwitchVisual, onSave, onRun }: {
-    setupSummary: string; setupOpen: boolean; onSetup: () => void; onSettings: () => void; settingsDisabled?: boolean
+  let { activeProject, activeFile, suiteTitle, dirty, saving, running, mode, setupOpen, onSetup, onSettings, settingsDisabled = false, validationErrors = 0, validationWarnings = 0, onJumpToError, onJumpToWarning, onSwitchCode, onSwitchVisual, onSave, onRun }: {
+    setupOpen: boolean; onSetup: () => void; onSettings: () => void; settingsDisabled?: boolean
     suiteTitle?: string
     activeProject: Project | null; activeFile: TestFile | null
     dirty: boolean; saving: boolean; running: boolean; mode: 'code' | 'visual'
@@ -21,12 +20,18 @@
       <p class="min-w-0 text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate" title={activeFile?.path}>{suiteTitle || (activeFile ? suiteLabel(activeFile) : 'Choose a suite from Projects')}</p>
       <button type="button" aria-label="Suite settings" disabled={!activeFile || settingsDisabled} title={settingsDisabled ? 'Edit this advanced suite in Code' : 'Suite settings'} onclick={onSettings} class="text-xs text-zinc-500 disabled:opacity-40">Settings</button>
       <p class="text-xs text-zinc-500" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes · saved before running' : 'All changes saved'}</p>
+      {#if validationErrors}<button type="button" class="text-xs text-red-600 underline" onclick={() => onJumpToError?.()}>{validationErrors} errors</button>{:else if validationWarnings}<button type="button" class="text-xs text-amber-700 underline" onclick={() => onJumpToWarning?.()}>{validationWarnings} warnings</button>{/if}
     </div>
   </div>
-  {#if validationErrors}<button type="button" class="text-xs text-red-600 underline" onclick={() => onJumpToError?.()}>{validationErrors} errors</button>{:else if validationWarnings}<button type="button" class="text-xs text-amber-700 underline" onclick={() => onJumpToWarning?.()}>{validationWarnings} warnings</button>{/if}
-  <SegmentedControl value={mode} options={[{ value: 'code', label: 'Code' }, { value: 'visual', label: 'Visual' }]} onchange={value => value === 'code' ? onSwitchCode() : onSwitchVisual()} size="sm" ariaLabel="Editor mode" />
-  <button type="button" aria-label="Run setup" aria-expanded={setupOpen} disabled={!activeProject} onclick={onSetup} class="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs text-zinc-700 dark:text-zinc-300 disabled:opacity-40"><span class="block font-medium">Run setup</span><span class="hidden lg:block text-zinc-500 mt-0.5">{setupSummary}</span></button>
-  <button type="button" aria-label="Toggle dark mode" class="size-8 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onclick={() => darkMode.update(value => !value)}>{$darkMode ? '☀' : '☾'}</button>
-  <Button variant="secondary" size="sm" onclick={onSave} loading={saving} disabled={!dirty || running}>Save</Button>
-  <Button size="sm" onclick={onRun} loading={running} disabled={!activeFile || saving || validationErrors > 0}>Run this suite</Button>
+
+  <div class="shrink-0" aria-label="Editor view">
+    <SegmentedControl value={mode} options={[{ value: 'code', label: 'Code' }, { value: 'visual', label: 'Visual' }]} onchange={value => value === 'code' ? onSwitchCode() : onSwitchVisual()} size="sm" class="h-9 [&_button]:py-0" ariaLabel="Editor mode" />
+  </div>
+  <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Editor actions">
+    <button type="button" aria-label="Run setup" aria-expanded={setupOpen} disabled={!activeProject} onclick={onSetup} class="h-9 inline-flex items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 px-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400/50">Run setup</button>
+    <div class="flex items-center gap-2 border-l border-zinc-200 dark:border-zinc-700 pl-3">
+      <Button variant="secondary" size="sm" onclick={onSave} loading={saving} disabled={!dirty || running}>Save</Button>
+      <Button size="sm" onclick={onRun} loading={running} disabled={!activeFile || saving || validationErrors > 0}>Run this suite</Button>
+    </div>
+  </div>
 </header>
