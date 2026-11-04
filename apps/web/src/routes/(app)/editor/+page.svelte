@@ -789,9 +789,9 @@
         <DropdownMenu label="Environment" value={environment} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} disabled={running || saving} onchange={handleEnvironmentChange} />
         <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
         <p class="min-w-0 basis-full xl:basis-0 xl:flex-1 text-xs text-zinc-500 break-all">{effectiveUrl || 'No address configured for this environment'}</p>
-        <button type="button" disabled={running || saving} onclick={openEditEnvironmentModal} class="text-xs text-zinc-500">{environmentNeedsSetup ? 'Set URL' : 'Edit URL'}</button>
-        <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
-        <RunSettings value={runSettings} disabled={running || saving} onchange={value => { runSettings = value; persistContext() }} />
+        <button type="button" disabled={running || saving} onclick={() => { runSetupExpanded = false; openEditEnvironmentModal() }} class="text-xs text-zinc-500">{environmentNeedsSetup ? 'Set URL' : 'Edit URL'}</button>
+        {#if activeProject}<a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>{/if}
+        <RunSettings inline value={runSettings} disabled={running || saving} onchange={value => { runSettings = value; persistContext() }} />
         </div>
     </div>
   </SlidePanel>
@@ -816,7 +816,6 @@
     onCancel={closeEnvModal}
   />
 
-  {#if mode === 'code'}<div class="shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-3 py-2">{@render editorPanelControls()}</div>{/if}
 
   <div class="flex flex-1 overflow-hidden min-h-0">
 
@@ -867,6 +866,9 @@
         </div>
 
       {:else if mode === 'code'}
+        <div class="shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2">
+          <div class="flex flex-wrap items-center gap-2">{@render editorPanelControls()}</div>
+        </div>
         <div class="flex-1 min-h-0 overflow-hidden">
           <CodeEditor bind:this={codeEditor} value={editorContent} onchange={onEdit} onsave={saveFile} />
         </div>
