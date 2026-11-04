@@ -20,7 +20,7 @@
   import { parentFolderPath } from '$lib/editor/file-tree'
   import type { ParsedFile } from '$lib/editor/types'
   import type { Project, TestFile, RunDetail, ProjectEnvironment, EnvironmentName } from '$lib/api'
-  import type { TestKindFilter } from '$lib/editor/test-kind'
+  import { matchesKindFilter, type TestKindFilter } from '$lib/editor/test-kind'
   import { resolveEffectiveUrl, needsEnvironmentSetup, isOverridableEnv } from '$lib/editor/resolve-env-url'
 
   import EditorToolbar from '$lib/components/editor/EditorToolbar.svelte'
@@ -189,8 +189,11 @@
     })
   })
   $effect(() => {
-    const editor = codeEditor, target = $page.url.searchParams.get('test')
-    if (editor && target && mode === 'code') untrack(() => { void tick().then(() => editor.focusTest(target)) })
+    const editor = codeEditor, selected = selectedTestId
+    if (editor && mode === 'code') untrack(() => {
+      const target = visualParsed?.tests.find(test => test.id === selected)?.name ?? parsedContent.tests.find(test => test.id === selected)?.name ?? $page.url.searchParams.get('test')
+      if (target) void tick().then(() => editor.focusTest(target))
+    })
   })
 
   function jumpToValidationIssue(severity: 'error' | 'warning') {
@@ -526,7 +529,9 @@
 
   function switchToVisual() {
     if (!visualSafe) { notifyError('This suite uses advanced syntax. Keep editing in Code to preserve its grouped flow.'); return }
+    const selectedName = visualParsed?.tests.find(test => test.id === selectedTestId)?.name ?? parsedContent.tests.find(test => test.id === selectedTestId)?.name
     visualParsed = parseAxtest(editorContent)
+    selectedTestId = visualParsed.tests.find(test => test.name === selectedName)?.id ?? visualParsed.tests[0]?.id ?? null
     mode = 'visual'
   }
 
@@ -543,9 +548,12 @@
 
   function selectTest(testId: string) {
     selectedTestId = testId
+    const parsed = mode === 'visual' ? visualParsed : parsedContent
+    const test = parsed?.tests.find(test => test.id === testId)
+    if (test && !matchesKindFilter(test.kind, testKindFilter)) testKindFilter = 'all'
     if (mode === 'visual') {
-      document.getElementById(`test-${testId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
+      void tick().then(() => document.getElementById(`test-${testId}`)?.scrollIntoView({ block: 'nearest' }))
+    } else if (test) codeEditor?.focusTest(test.name)
   }
 
   function toggleCollapse(testId: string) {
