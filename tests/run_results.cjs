@@ -64,7 +64,7 @@ const { chromium } = createRequire(process.cwd() + '/packages/core/package.json'
     assert.equal(await rows.count(), 2)
     await rows.filter({ hasText: 'Case 12' }).locator('summary').click()
     await rows.filter({ hasText: 'Case 12' }).getByRole('button', { name: 'Edit this test', exact: true }).click()
-    await page.getByRole('region', { name: 'Suite editor context', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run setup', exact: true }).waitFor()
     assert.equal(new URL(page.url()).searchParams.get('test'), 'Case 12')
     await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
     await nav.getByText('Page 2 of 2', { exact: true }).waitFor()

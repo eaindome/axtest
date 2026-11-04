@@ -111,7 +111,7 @@ const { chromium } = createRequire(process.cwd() + '/packages/core/package.json'
     await testNav.getByRole('button', { name: 'Next', exact: true }).click()
     await tests.getByRole('button', { name: 'Preview test Behaviour 11', exact: true }).click()
     await preview.getByRole('button', { name: 'Edit in editor', exact: true }).click()
-    await page.getByRole('region', { name: 'Suite editor context', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Run setup', exact: true }).waitFor()
     assert.equal(new URL(page.url()).searchParams.get('test'), 'Behaviour 11')
     await page.getByRole('link', { name: 'Back to suites', exact: true }).click()
     await testNav.getByText('Page 2 of 4', { exact: true }).waitFor()

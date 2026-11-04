@@ -70,7 +70,7 @@ const API = 'http://localhost:5000', WEB = 'http://localhost:5173'
     assert.equal((await call('GET', `/api/projects/${project.id}/explorer`)).files[0].content, newer.content)
     page.once('dialog', dialog => dialog.accept())
     await page.reload()
-    await page.getByRole('region', { name: 'Suite editor context' }).waitFor()
+    await page.getByRole('button', { name: 'Run setup', exact: true }).waitFor()
     assert((await page.locator('.cm-content').innerText()).includes('# another edit'))
     // A real edit keeps the advanced tail byte-for-byte.
     await code(newer.content.replace('title: Task journeys', 'title: Task journeys revised'))
