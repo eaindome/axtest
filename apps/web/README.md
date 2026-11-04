@@ -45,6 +45,8 @@ Tests still execute AUTH steps against the application being tested. Set a proje
 
 The editor header groups Back to suites, project/suite identity, save status, Code/Visual, Save and Run. Expand Run setup to choose the environment, saved account and browser settings, inspect the target URL, or use Edit URL. Production edits the project base URL; Staging and Local keep their own URL or explicitly reuse Production. Additional runtime inputs open a dialog when required. Explorer and Outline toggles sit above the canvas; Results can be reopened from the bottom edge without rerunning. Visible Chromium opens on the local API machine; headless execution remains the default.
 
+Visual mode opens one behaviour at a time. Choose behaviour provides search and the latest editor-run status; Previous and Next move through the current test-kind filter. Add behaviour opens a new draft behaviour immediately. Switching behaviours keeps unsaved changes, and deleting the active behaviour opens its neighbour. Code continues to show the full suite. Links from Suites open the requested behaviour directly.
+
 ## Runs and evidence
 
 The editor submits runs asynchronously, displays queue/running state, and polls their persisted run resource. Leaving the editor stops browser polling, not a run already queued on the backend. Project run history refreshes while runs are pending or running.

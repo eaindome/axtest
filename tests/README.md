@@ -13,6 +13,7 @@ Useful checks:
 - `node tests/suites_authoring.cjs`: full editor drafts, toast saves, exact-test links, quick runs and restored suite context in mock mode.
 - `node tests/suites_authoring_api.cjs`: real editor authoring, saved-account reuse, conflict toasts and advanced source preservation against a disposable todo fixture.
 - `node tests/suite_pagination.cjs`: large suite/test lists, page-scoped selection, stable previews and editor return.
+- `node tests/editor_navigation.cjs`: 51-behaviour navigation, search, keyboard selection, preserved edits, direct links, add/delete and complete Code access.
 - `node tests/run_results.cjs`: ten-result pages, filtering, batch scope and restored result views.
 - `node tests/run_history.cjs`: history sorting, pagination, combined filters, failure details and responsive layout.
 - `node tests/frontend_run_options.cjs`: shared Run settings, real visible Fast/Slow browsers, headless speed and input validation.
