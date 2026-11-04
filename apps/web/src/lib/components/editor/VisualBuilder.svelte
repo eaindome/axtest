@@ -1,20 +1,16 @@
 <script lang="ts">
   import TestBlockCard from './TestBlockCard.svelte'
-  import TestKindFilterBar from './TestKindFilterBar.svelte'
-  import FileSetupPanel from './FileSetupPanel.svelte'
-  import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
   import { canGenerateFromSeed } from '$lib/editor/generate-tests'
   import { makeStep, serializeAxtest } from '$lib/editor/parse-axtest'
   import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import { reorder } from '$lib/editor/step-options'
-  import { matchesKindFilter, type TestKindFilter } from '$lib/editor/test-kind'
-  import type { ParsedFile, Rule, Step, TestBlock } from '$lib/editor/types'
+  import { TEST_KIND_FILTER_OPTIONS, matchesKindFilter, type TestKindFilter } from '$lib/editor/test-kind'
+  import type { Snippet } from 'svelte'
+  import type { ParsedFile, Step, TestBlock } from '$lib/editor/types'
 
-  type VisualPanel = 'setup' | 'tests'
 
   interface Props {
-    draft?: boolean
-    authOptions?: { value: string; label: string }[]
+    controls?: Snippet
     parsed: ParsedFile
     selectedTestId: string | null
     collapsedTests: Set<string>
@@ -31,9 +27,8 @@
   }
 
   let {
-    draft = false,
+    controls,
     parsed,
-    authOptions,
     selectedTestId,
     collapsedTests,
     runningTestId,
@@ -48,12 +43,7 @@
     onGenerateTests,
   }: Props = $props()
 
-  let panel = $state<VisualPanel>('tests')
   let authoringScroll = $state<HTMLDivElement>()
-
-  $effect(() => {
-    if (selectedTestId) panel = 'tests'
-  })
 
   function apply(patch: ParsedFile) {
     onchange(serializeAxtest(patch), patch)
@@ -113,7 +103,6 @@
   }
 
   function addTest() {
-    panel = 'tests'
     const nt: TestBlock = {
       id: crypto.randomUUID(),
       name: `New behaviour${parsed.tests.length ? ' ' + (parsed.tests.length + 1) : ''}`,
@@ -126,14 +115,6 @@
     onKindFilterChange('all')
     apply({ ...parsed, tests: [...parsed.tests, nt] })
     onSelectTest(nt.id)
-  }
-
-  function updateMeta(field: 'title' | 'baseUrl' | 'auth' | 'module', value: string) {
-    apply({ ...parsed, [field]: value, ...(parsed.flow && field === (parsed.flow === 'auth' ? 'auth' : 'module') ? { tests: parsed.tests.map(test => ({ ...test, name: value })) } : {}) })
-  }
-
-  function updateRules(rules: Rule[]) {
-    apply({ ...parsed, rules })
   }
 
   const visibleTests = $derived(
@@ -154,75 +135,32 @@
   $effect(() => {
     if (activeEntry && activeEntry.test.id !== selectedTestId) chooseTest(activeEntry.test.id)
   })
-  const panelOptions = $derived([
-    { value: 'setup' as const, label: 'Suite settings' },
-    {
-      value: 'tests' as const,
-      label: parsed.flow ? 'Flow steps' : 'Test cases',
-      badge: parsed.tests.length > 0 ? parsed.tests.length : undefined,
-    },
-  ])
 </script>
 
 <div class="flex-1 flex flex-col min-h-0 bg-zinc-50/40 dark:bg-zinc-950">
-  <!-- Panel switcher -->
-  <header class="visual-subheader shrink-0 px-5 pt-3.5 pb-3.5 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-sm">
-    <div class="max-w-2xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <SegmentedControl
-        value={panel}
-        options={panelOptions}
-        onchange={(v) => (panel = v as VisualPanel)}
-        ariaLabel="Visual editor section"
-      />
-
-      <div class="flex items-center min-h-8 sm:justify-end">
-        {#if panel === 'setup'}
-          <p class="text-sm leading-snug text-zinc-400 dark:text-zinc-500">
-            Suite details &amp; validation rules
-          </p>
-        {:else if hasKindTags}
-          <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            <span class="text-xs font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider shrink-0">Filter</span>
-            <TestKindFilterBar tests={parsed.tests} value={kindFilter} onchange={onKindFilterChange} compact />
-          </div>
-        {:else if parsed.tests.length > 0}
-          <p class="text-sm text-zinc-400 dark:text-zinc-500">{parsed.flow ? 'Reusable flow' : `${parsed.tests.length} test${parsed.tests.length === 1 ? '' : 's'}`}</p>
-        {/if}
-      </div>
-    </div>
-  </header>
-
-  {#if panel === 'tests' && !parsed.flow && parsed.tests.length}
-    <nav aria-label="Behaviour navigation" class="shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 px-5 py-3">
-      <div class="max-w-2xl mx-auto space-y-2">
-        <div class="flex flex-wrap items-center gap-2">
+  <div class="shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2">
+    <div class="flex flex-wrap items-center gap-2">
+      {@render controls?.()}
+      {#if !parsed.flow && parsed.tests.length}
+        <nav aria-label="Behaviour navigation" class="min-w-0 flex flex-1 flex-wrap items-center gap-2">
           <div class="min-w-0 flex-1 basis-48"><DropdownMenu class="w-full" label="Choose behaviour" searchable value={activeEntry?.test.id ?? ''} options={visibleTests.map(({ test, index }) => ({ value: test.id, label: `${index + 1}. ${test.name} · ${runningTestId === test.id ? 'Running' : testStatuses[test.id] ?? 'No result'}` }))} onchange={chooseTest} /></div>
-          <button type="button" class="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition <= 0} onclick={() => chooseTest(visibleTests[activePosition - 1].test.id)}>Previous</button>
-          <button type="button" class="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition < 0 || activePosition >= visibleTests.length - 1} onclick={() => chooseTest(visibleTests[activePosition + 1].test.id)}>Next</button>
-          <button type="button" class="rounded-lg px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={addTest}>Add behaviour</button>
-        </div>
-        <p class="text-xs text-zinc-500">{activePosition < 0 ? 0 : activePosition + 1} of {visibleTests.length}{kindFilter !== 'all' ? ' matching' : ''} behaviours · Results reflect the latest run in this editor.</p>
-      </div>
-    </nav>
-  {/if}
+          {#if hasKindTags}<DropdownMenu label="Behaviour type filter" value={kindFilter} options={TEST_KIND_FILTER_OPTIONS} onchange={value => onKindFilterChange(value as TestKindFilter)} />{/if}
+          <span class="text-xs text-zinc-400" title="Position in matching behaviours">{activePosition < 0 ? 0 : activePosition + 1}/{visibleTests.length}</span>
+          <button type="button" class="rounded-lg px-2 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition <= 0} onclick={() => chooseTest(visibleTests[activePosition - 1].test.id)}>Previous</button>
+          <button type="button" class="rounded-lg px-2 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition < 0 || activePosition >= visibleTests.length - 1} onclick={() => chooseTest(visibleTests[activePosition + 1].test.id)}>Next</button>
+          <button type="button" class="rounded-lg px-2 py-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={addTest}>Add behaviour</button>
+        </nav>
+      {/if}
+    </div>
+  </div>
 
   <div bind:this={authoringScroll} role="region" aria-label="Visual authoring canvas" class="flex-1 overflow-auto px-5 pt-5 pb-6 panel-scroll min-h-0">
     <div class="max-w-2xl mx-auto">
-      {#if panel === 'setup'}
-        <FileSetupPanel
-          {draft}
-          {parsed}
-          {authOptions}
-          onMetaChange={updateMeta}
-          onRulesChange={updateRules}
-        />
-      {:else}
         <div class="space-y-4">
           {#if parsed.tests.length === 0}
             <div class="text-center py-16">
               <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-1">No test cases yet</p>
               <p class="text-xs text-zinc-400 mb-4">Add a behaviour, its actions and an expected result.</p>
-              <button type="button" onclick={() => (panel = 'setup')} class="text-xs text-amber-600 hover:text-amber-700 mr-3">Suite settings</button>
               <button type="button" onclick={addTest} class="text-xs font-medium text-amber-600 hover:text-amber-700">+ Add test</button>
             </div>
           {:else if visibleTests.length === 0}
@@ -262,7 +200,6 @@
 
 
         </div>
-      {/if}
     </div>
   </div>
 </div>
