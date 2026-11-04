@@ -178,7 +178,6 @@
                 {test}
                 index={ti}
                 allTests={parsed.tests}
-                selected={selectedTestId === test.id}
                 collapsed={collapsedTests.has(test.id)}
                 running={runningTestId === test.id}
                 generating={generatingTestId === test.id}
