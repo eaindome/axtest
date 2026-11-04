@@ -5,6 +5,7 @@
   import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte'
   import { canGenerateFromSeed } from '$lib/editor/generate-tests'
   import { makeStep, serializeAxtest } from '$lib/editor/parse-axtest'
+  import DropdownMenu from '$lib/components/ui/DropdownMenu.svelte'
   import { reorder } from '$lib/editor/step-options'
   import { matchesKindFilter, type TestKindFilter } from '$lib/editor/test-kind'
   import type { ParsedFile, Rule, Step, TestBlock } from '$lib/editor/types'
@@ -48,6 +49,7 @@
   }: Props = $props()
 
   let panel = $state<VisualPanel>('tests')
+  let authoringScroll = $state<HTMLDivElement>()
 
   $effect(() => {
     if (selectedTestId) panel = 'tests'
@@ -94,7 +96,11 @@
   }
 
   function deleteTest(testId: string) {
-    apply({ ...parsed, tests: parsed.tests.filter(t => t.id !== testId) })
+    const index = parsed.tests.findIndex(test => test.id === testId)
+    const tests = parsed.tests.filter(t => t.id !== testId)
+    apply({ ...parsed, tests })
+    const next = tests[Math.min(index, tests.length - 1)]
+    if (next) chooseTest(next.id)
   }
 
   function reorderSteps(testId: string, from: number, to: number) {
@@ -110,13 +116,14 @@
     panel = 'tests'
     const nt: TestBlock = {
       id: crypto.randomUUID(),
-      name: 'New test',
+      name: `New behaviour${parsed.tests.length ? ' ' + (parsed.tests.length + 1) : ''}`,
       kind: '',
       generatedFrom: '',
       dependsOn: '',
       steps: [],
       asserts: [],
     }
+    onKindFilterChange('all')
     apply({ ...parsed, tests: [...parsed.tests, nt] })
     onSelectTest(nt.id)
   }
@@ -136,6 +143,17 @@
   )
 
   const hasKindTags = $derived(parsed.tests.some(t => t.kind !== ''))
+  const activeEntry = $derived(visibleTests.find(entry => entry.test.id === selectedTestId) ?? visibleTests[0])
+  const activePosition = $derived(activeEntry ? visibleTests.indexOf(activeEntry) : -1)
+  const activeId = $derived(activeEntry?.test.id)
+  $effect(() => { if (activeId && authoringScroll) authoringScroll.scrollTop = 0 })
+  function chooseTest(id: string) {
+    if (collapsedTests.has(id)) onToggleCollapse(id)
+    onSelectTest(id)
+  }
+  $effect(() => {
+    if (activeEntry && activeEntry.test.id !== selectedTestId) chooseTest(activeEntry.test.id)
+  })
   const panelOptions = $derived([
     { value: 'setup' as const, label: 'Suite settings' },
     {
@@ -160,7 +178,7 @@
       <div class="flex items-center min-h-8 sm:justify-end">
         {#if panel === 'setup'}
           <p class="text-sm leading-snug text-zinc-400 dark:text-zinc-500">
-            Module info &amp; validation rules
+            Suite details &amp; validation rules
           </p>
         {:else if hasKindTags}
           <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
@@ -174,7 +192,21 @@
     </div>
   </header>
 
-  <div class="flex-1 overflow-auto px-5 pt-5 pb-6 panel-scroll min-h-0">
+  {#if panel === 'tests' && !parsed.flow && parsed.tests.length}
+    <nav aria-label="Behaviour navigation" class="shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 px-5 py-3">
+      <div class="max-w-2xl mx-auto space-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="min-w-0 flex-1 basis-48"><DropdownMenu class="w-full" label="Choose behaviour" searchable value={activeEntry?.test.id ?? ''} options={visibleTests.map(({ test, index }) => ({ value: test.id, label: `${index + 1}. ${test.name} · ${runningTestId === test.id ? 'Running' : testStatuses[test.id] ?? 'No result'}` }))} onchange={chooseTest} /></div>
+          <button type="button" class="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition <= 0} onclick={() => chooseTest(visibleTests[activePosition - 1].test.id)}>Previous</button>
+          <button type="button" class="rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition < 0 || activePosition >= visibleTests.length - 1} onclick={() => chooseTest(visibleTests[activePosition + 1].test.id)}>Next</button>
+          <button type="button" class="rounded-lg px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={addTest}>Add behaviour</button>
+        </div>
+        <p class="text-xs text-zinc-500">{activePosition < 0 ? 0 : activePosition + 1} of {visibleTests.length}{kindFilter !== 'all' ? ' matching' : ''} behaviours · Results reflect the latest run in this editor.</p>
+      </div>
+    </nav>
+  {/if}
+
+  <div bind:this={authoringScroll} role="region" aria-label="Visual authoring canvas" class="flex-1 overflow-auto px-5 pt-5 pb-6 panel-scroll min-h-0">
     <div class="max-w-2xl mx-auto">
       {#if panel === 'setup'}
         <FileSetupPanel
@@ -202,7 +234,7 @@
             {#if parsed.flow}
               <p class="text-sm text-zinc-500">{parsed.flow === 'auth' ? 'Authentication flow' : 'Reusable module flow'}. Its steps run when another spec references this flow.</p>
             {/if}
-            {#each visibleTests as { test, index: ti } (test.id)}
+            {#each activeEntry ? [activeEntry] : [] as { test, index: ti } (test.id)}
               <TestBlockCard
                 flow={!!parsed.flow}
                 {test}
@@ -228,19 +260,7 @@
             {/each}
           {/if}
 
-          {#if parsed.tests.length > 0 && !parsed.flow}
-            <button
-              type="button"
-              onclick={addTest}
-              class="w-full py-3 border border-dashed border-zinc-200 dark:border-zinc-700 rounded-xl text-sm text-zinc-400
-                     hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Add behaviour
-            </button>
-          {/if}
+
         </div>
       {/if}
     </div>
