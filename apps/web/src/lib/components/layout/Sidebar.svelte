@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { darkMode } from '$lib/stores/theme'
   import { logout as apiLogout } from '$lib/api/real'
   import { useMock } from '$lib/stores/dev'
   import { onMount } from 'svelte'
@@ -216,6 +217,10 @@
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="8" r="3.25" /><path stroke-linecap="round" d="M5 20v-2a7 7 0 0 1 14 0v2" /></svg>
           Account settings
         </a>
+        <button type="button" onclick={() => { darkMode.update(value => !value); closeAccountMenu() }} class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400/50">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path stroke-linecap="round" d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></svg>
+          {$darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+        </button>
         <button onclick={() => { closeAccountMenu(); logout() }} class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H5v14h4m5-11 4 4-4 4m-5-4h9" /></svg>
           Sign out
