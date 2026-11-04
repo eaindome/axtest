@@ -767,7 +767,6 @@
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
-    setupSummary={`${environment[0].toUpperCase() + environment.slice(1)} · ${runSettings.headed && !$useMock ? 'Visible browser' : 'Headless'}`}
     setupOpen={runSetupExpanded}
     onSetup={() => { runSetupExpanded = true }}
     onSettings={() => { suiteSettingsOpen = true }}
