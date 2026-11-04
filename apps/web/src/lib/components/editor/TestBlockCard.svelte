@@ -18,7 +18,6 @@
     test: TestBlock
     index: number
     allTests: TestBlock[]
-    selected: boolean
     collapsed: boolean
     running: boolean
     generating?: boolean
@@ -41,7 +40,6 @@
     test,
     index,
     allTests,
-    selected,
     collapsed,
     running,
     generating = false,
@@ -124,10 +122,7 @@
 
 <div
   id="test-{test.id}"
-  class="bg-white dark:bg-zinc-900 border rounded-xl overflow-hidden transition-shadow
-         {selected
-           ? 'border-amber-400/60 dark:border-amber-500/40 shadow-sm shadow-amber-500/5'
-           : 'border-zinc-200/80 dark:border-zinc-800'}"
+  class="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-xl overflow-hidden"
 >
   <!-- Header -->
   <div class="flex items-center gap-2 px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
