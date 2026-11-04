@@ -138,20 +138,22 @@
 </script>
 
 <div class="flex-1 flex flex-col min-h-0 bg-zinc-50/40 dark:bg-zinc-950">
-  <div class="shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2">
-    <div class="flex flex-wrap items-center gap-2">
-      {@render controls?.()}
+  <div class="@container shrink-0 border-b border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2">
+    <nav aria-label="Behaviour navigation" class="grid grid-cols-2 items-center gap-2 @[60rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <div class="col-start-1 row-start-1 min-w-0 justify-self-start">{@render controls?.()}</div>
       {#if !parsed.flow && parsed.tests.length}
-        <nav aria-label="Behaviour navigation" class="min-w-0 flex flex-1 flex-wrap items-center gap-2">
-          <div class="min-w-0 flex-1 basis-48"><DropdownMenu class="w-full" label="Choose behaviour" searchable value={activeEntry?.test.id ?? ''} options={visibleTests.map(({ test, index }) => ({ value: test.id, label: `${index + 1}. ${test.name} · ${runningTestId === test.id ? 'Running' : testStatuses[test.id] ?? 'No result'}` }))} onchange={chooseTest} /></div>
-          {#if hasKindTags}<DropdownMenu label="Behaviour type filter" value={kindFilter} options={TEST_KIND_FILTER_OPTIONS} onchange={value => onKindFilterChange(value as TestKindFilter)} />{/if}
+        <div class="col-span-2 col-start-1 row-start-2 mx-auto grid w-full max-w-lg grid-cols-[auto_minmax(0,20rem)_auto_auto] items-center justify-center gap-2 @[60rem]:col-span-1 @[60rem]:col-start-2 @[60rem]:row-start-1">
+          <button type="button" class="rounded-lg px-2 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition <= 0} onclick={() => chooseTest(visibleTests[activePosition - 1].test.id)}>Previous</button>
+          <div class="min-w-0"><DropdownMenu class="w-full [&>button]:h-7 [&>button]:text-xs" label="Choose behaviour" searchable value={activeEntry?.test.id ?? ''} options={visibleTests.map(({ test, index }) => ({ value: test.id, label: `${index + 1}. ${test.name} · ${runningTestId === test.id ? 'Running' : testStatuses[test.id] ?? 'No result'}` }))} onchange={chooseTest} /></div>
           <span class="text-xs text-zinc-400" title="Position in matching behaviours">{activePosition < 0 ? 0 : activePosition + 1}/{visibleTests.length}</span>
-          <button type="button" class="rounded-lg px-2 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition <= 0} onclick={() => chooseTest(visibleTests[activePosition - 1].test.id)}>Previous</button>
-          <button type="button" class="rounded-lg px-2 py-2 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition < 0 || activePosition >= visibleTests.length - 1} onclick={() => chooseTest(visibleTests[activePosition + 1].test.id)}>Next</button>
-          <button type="button" class="rounded-lg px-2 py-2 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={addTest}>Add behaviour</button>
-        </nav>
+          <button type="button" class="rounded-lg px-2 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 disabled:opacity-40" disabled={activePosition < 0 || activePosition >= visibleTests.length - 1} onclick={() => chooseTest(visibleTests[activePosition + 1].test.id)}>Next</button>
+        </div>
+        <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-2 @[60rem]:col-start-3">
+          {#if hasKindTags}<DropdownMenu class="[&>button]:h-7 [&>button]:text-xs" label="Behaviour type filter" value={kindFilter} options={TEST_KIND_FILTER_OPTIONS} onchange={value => onKindFilterChange(value as TestKindFilter)} />{/if}
+          <button type="button" class="whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" onclick={addTest}>Add behaviour</button>
+        </div>
       {/if}
-    </div>
+    </nav>
   </div>
 
   <div bind:this={authoringScroll} role="region" aria-label="Visual authoring canvas" class="flex-1 overflow-auto px-5 pt-5 pb-6 panel-scroll min-h-0">
