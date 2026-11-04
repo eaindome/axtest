@@ -25,6 +25,8 @@
 
   import EditorToolbar from '$lib/components/editor/EditorToolbar.svelte'
   import RunSettings from '$lib/components/editor/RunSettings.svelte'
+  import FileSetupPanel from '$lib/components/editor/FileSetupPanel.svelte'
+  import SlidePanel from '$lib/components/ui/SlidePanel.svelte'
   import RunInputsPanel from '$lib/components/editor/RunInputsPanel.svelte'
   import { runInputNames } from '$lib/editor/run-inputs'
   import EnvironmentSetupModal from '$lib/components/editor/EnvironmentSetupModal.svelte'
@@ -43,7 +45,7 @@
 
   let runController: AbortController | undefined
   let inputNames = $state<string[]>([])
-  let runSetupOpen = $state(false), runSetupExpanded = $state(false)
+  let runSetupOpen = $state(false), runSetupExpanded = $state(false), suiteSettingsOpen = $state(false)
   type RunSetup = { variables: Record<string, string>; headed: boolean; slowMoMs: number }
   let resolveInputs: ((values: RunSetup | null) => void) | null = null
   function finishInputs(values: Record<string, string> | null) {
@@ -546,6 +548,16 @@
     if (parsed) visualParsed = parsed
   }
 
+  function updateSuiteSettings(patch: Partial<ParsedFile>) {
+    if (!visualSafe || !activeFile) return
+    const parsed = mode === 'visual' ? visualParsed ?? parsedContent : parsedContent
+    const next = { ...parsed, ...patch }
+    if (parsed.flow && (patch.auth !== undefined || patch.module !== undefined)) {
+      next.tests = next.tests.map(test => ({ ...test, name: (parsed.flow === 'auth' ? next.auth : next.module) ?? test.name }))
+    }
+    onVisualChange(serializeAxtest(next), next)
+  }
+
   function selectTest(testId: string) {
     selectedTestId = testId
     const parsed = mode === 'visual' ? visualParsed : parsedContent
@@ -723,6 +735,13 @@
   })
 </script>
 
+{#snippet editorPanelControls()}
+        <nav aria-label="Editor panels" class="flex flex-wrap items-center gap-1">
+          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={explorerOpen} aria-controls="editor-explorer" onclick={() => { explorerOpen = !explorerOpen }}>Explorer</button>
+          {#if !inLessonMode}<button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={outlineOpen} aria-controls="editor-outline" onclick={() => { outlineOpen = !outlineOpen }}>Outline</button>{/if}
+        </nav>
+{/snippet}
+
 <div class="flex flex-col h-full overflow-hidden bg-white dark:bg-zinc-950">
   {#if runSetupOpen}<RunInputsPanel names={inputNames} targetUrl={effectiveUrl} scope={`${$currentWorkspace?.id}:${activeProject?.id}:${environment}`} onSubmit={values => finishInputs(values)} onCancel={() => finishInputs(null)} />{/if}
   <div class="contents" inert={runSetupOpen}>
@@ -748,13 +767,24 @@
     onSwitchVisual={switchToVisual}
     onSave={saveFile}
     onRun={runTests}
+    setupSummary={`${environment[0].toUpperCase() + environment.slice(1)} · ${runSettings.headed && !$useMock ? 'Visible browser' : 'Headless'}`}
+    setupOpen={runSetupExpanded}
+    onSetup={() => { runSetupExpanded = true }}
+    onSettings={() => { suiteSettingsOpen = true }}
+    settingsDisabled={!visualSafe}
     suiteTitle={draftSuite ? draftName.trim() || 'New suite draft' : undefined}
   />
 
   {#if activeProject}
-    <section class="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 max-h-[40vh] overflow-y-auto" aria-label="Suite editor context">
-      <details bind:open={runSetupExpanded}>
-        <summary class="cursor-pointer px-5 py-2.5 text-xs text-zinc-600 dark:text-zinc-400"><span class="font-medium text-zinc-800 dark:text-zinc-200">Run setup</span><span class="ml-3 capitalize">{environment}</span> · {account?.name ?? 'No saved account'} · {runSettings.headed && !$useMock ? 'Visible browser' : 'Headless'}{#if $useMock} · Mock mode{/if}</summary>
+    <section class="shrink-0 bg-zinc-50 dark:bg-zinc-950 max-h-[40vh] overflow-y-auto" aria-label="Suite editor context">
+      {#if draftSuite}<div class="max-w-lg space-y-1 px-5 pb-4"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
+      {#if runReadiness.length}<div class="px-5 pb-3 text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
+      {#if !visualSafe && activeFile}<p class="px-5 pb-3 text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
+    </section>
+  {/if}
+
+  <SlidePanel open={runSetupExpanded} title="Run setup" onclose={() => { runSetupExpanded = false }}>
+    <div class="py-5 space-y-4"><p class="px-5 text-sm text-zinc-500">Choose the environment, test account and browser settings for this run.</p>
         <div class="flex flex-wrap items-center gap-3 px-5 pb-4" aria-label="Run context">
         <DropdownMenu label="Environment" value={environment} options={[{ value: 'local', label: 'Local' }, { value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]} disabled={running || saving} onchange={handleEnvironmentChange} />
         <DropdownMenu label="Test account" value={accountId} options={[{ value: '', label: 'No saved account' }, ...availableAccounts.map(account => ({ value: account.id, label: account.name }))]} disabled={running || saving} onchange={value => { accountId = value; runReadiness = []; persistContext() }} />
@@ -763,12 +793,15 @@
         <a class="text-xs text-zinc-500" href={`/projects/${activeProject.id}`}>Configuration</a>
         <RunSettings value={runSettings} disabled={running || saving} onchange={value => { runSettings = value; persistContext() }} />
         </div>
-      </details>
-      {#if draftSuite}<div class="max-w-lg space-y-1 px-5 pb-4"><label for="draft-suite-name" class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Suite name</label><input id="draft-suite-name" class="w-full h-10 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm outline-none focus:ring-1 focus:ring-zinc-400/40" placeholder="Task management" bind:value={draftName} oninput={() => { markDirty(); draftError = '' }} />{#if draftError}<p role="alert" class="text-xs text-red-600">{draftError}</p>{/if}<p class="text-xs text-zinc-500">Name this suite and write its first behaviour below. It is created when you save.</p></div>{/if}
-      {#if runReadiness.length}<div class="px-5 pb-3 text-sm text-amber-800 dark:text-amber-300" role="status">{#each runReadiness as reason}<p>{reason}</p>{/each}<a class="underline text-xs" href={`/projects/${activeProject.id}`}>Review configuration</a></div>{/if}
-      {#if !visualSafe && activeFile}<p class="px-5 pb-3 text-xs text-zinc-500">This suite uses advanced syntax. Code preserves its grouped steps and assertions.</p>{/if}
-    </section>
-  {/if}
+    </div>
+  </SlidePanel>
+  <SlidePanel open={suiteSettingsOpen} title="Suite settings" onclose={() => { suiteSettingsOpen = false }}>
+    <div class="p-5">
+      {#if activeFile && visualSafe}
+        <FileSetupPanel draft={draftSuite} parsed={mode === 'visual' ? visualParsed ?? parsedContent : parsedContent} authOptions={[{ value: '', label: 'No login step' }, ...files.filter(file => file.path.startsWith('auth/') && !/^\s*TEST\s+/m.test(file.content)).map(file => ({ value: file.path.slice(5).replace(/\.axtest$/, ''), label: file.name.replace(/\.axtest$/, '') }))]} onMetaChange={(field, value) => updateSuiteSettings({ [field]: value })} onRulesChange={rules => updateSuiteSettings({ rules })} />
+      {:else}<p class="text-sm text-zinc-500">Use Code to edit this suite's settings while preserving its advanced syntax.</p>{/if}
+    </div>
+  </SlidePanel>
 
   <EnvironmentSetupModal
     open={envModalOpen}
@@ -783,12 +816,7 @@
     onCancel={closeEnvModal}
   />
 
-  <div class="shrink-0 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-1">
-        <nav aria-label="Editor panels" class="flex flex-wrap items-center gap-1">
-          <button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={explorerOpen} aria-controls="editor-explorer" onclick={() => { explorerOpen = !explorerOpen }}>Explorer</button>
-          {#if !inLessonMode}<button class="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 aria-pressed:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:aria-pressed:bg-zinc-800" aria-pressed={outlineOpen} aria-controls="editor-outline" onclick={() => { outlineOpen = !outlineOpen }}>Outline</button>{/if}
-        </nav>
-  </div>
+  {#if mode === 'code'}<div class="shrink-0 border-b border-zinc-100 dark:border-zinc-800 px-3 py-2">{@render editorPanelControls()}</div>{/if}
 
   <div class="flex flex-1 overflow-hidden min-h-0">
 
@@ -845,9 +873,8 @@
 
       {:else if visualParsed}
         <VisualBuilder
-          draft={draftSuite}
+          controls={editorPanelControls}
           parsed={visualParsed}
-          authOptions={[{ value: '', label: 'No login step' }, ...files.filter(file => file.path.startsWith('auth/') && !/^\s*TEST\s+/m.test(file.content)).map(file => ({ value: file.path.slice(5).replace(/\.axtest$/, ''), label: file.name.replace(/\.axtest$/, '') }))]}
           {selectedTestId}
           {collapsedTests}
           {runningTestId}
